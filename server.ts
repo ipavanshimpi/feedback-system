@@ -2,6 +2,16 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
+import dotenv from "dotenv";
+import fs from "fs";
+
+// Load .env.local first if it exists, otherwise fall back to .env
+const localEnvPath = path.resolve(process.cwd(), ".env.local");
+if (fs.existsSync(localEnvPath)) {
+  dotenv.config({ path: localEnvPath });
+} else {
+  dotenv.config();
+}
 import {
   getCampaigns,
   getCampaignById,
@@ -33,7 +43,7 @@ function getGeminiClient(): GoogleGenAI {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 
   app.use(express.json());
 
@@ -70,44 +80,89 @@ async function startServer() {
     }
 
     try {
-      const ai = getGeminiClient();
-      console.log(`Querying Gemini to generate feedback form for topic: "${prompt}"`);
+      let questions: string[] = [];
+      let campaignTitle = prompt.trim();
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: `Create feedback questions and title for the topic: "${prompt}"`,
-        config: {
-          systemInstruction: 
-            "You are an API that generates course evaluation campaigns. The user will provide a topic or prompt.\n" +
-            "Generate a professional JSON object with two fields:\n" +
-            "1. 'title': A clean, concise, elegant campaign/course title. CRITICAL RULE: If the user's prompt contains or specifies a title (e.g. in quotes or as a clear title like 'Advanced Technical Training & Mentorship Feedback Survey'), you MUST use that exact title string without modifying, shortening, or altering it.\n" +
-            "2. 'questions': A valid JSON array of rating question strings. Focus on standard quantitative metrics. CRITICAL RULE: If the user's prompt requests a specific number of questions (e.g., exactly 10 rating questions) or lists specific dimensions, you MUST generate exactly that requested number of questions (up to 15) addressing those specific items and dimensions. Otherwise, generate a list of 4 to 8 high-quality questions.\n" +
-            "Return ONLY the valid JSON object. No markdown syntax, no extra commentary.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              questions: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              }
+      const apiKey = process.env.GEMINI_API_KEY;
+      const hasApiKey = apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim() !== "";
+
+      if (hasApiKey) {
+        const ai = getGeminiClient();
+        console.log(`Querying Gemini to generate feedback form for topic: "${prompt}"`);
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: `Create feedback questions and title for the topic: "${prompt}"`,
+          config: {
+            systemInstruction: 
+              "You are an API that generates course evaluation campaigns. The user will provide a topic or prompt.\n" +
+              "Generate a professional JSON object with two fields:\n" +
+              "1. 'title': A clean, concise, elegant campaign/course title. CRITICAL RULE: If the user's prompt contains or specifies a title (e.g. in quotes or as a clear title like 'Advanced Technical Training & Mentorship Feedback Survey'), you MUST use that exact title string without modifying, shortening, or altering it.\n" +
+              "2. 'questions': A valid JSON array of rating question strings. Focus on standard quantitative metrics. CRITICAL RULE: If the user's prompt requests a specific number of questions (e.g., exactly 10 rating questions) or lists specific dimensions, you MUST generate exactly that requested number of questions (up to 15) addressing those specific items and dimensions. Otherwise, generate a list of 4 to 8 high-quality questions.\n" +
+              "Return ONLY the valid JSON object. No markdown syntax, no extra commentary.",
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                questions: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                }
+              },
+              required: ["title", "questions"]
             },
-            required: ["title", "questions"]
           },
-        },
-      });
+        });
 
-      const text = response.text?.trim() || "{}";
-      let parsedData: { title?: string; questions?: string[] } = {};
-      try {
-        parsedData = JSON.parse(text);
-      } catch (parseError) {
-        console.error("Failed to parse Gemini output:", text, parseError);
+        const text = response.text?.trim() || "{}";
+        let parsedData: { title?: string; questions?: string[] } = {};
+        try {
+          parsedData = JSON.parse(text);
+        } catch (parseError) {
+          console.error("Failed to parse Gemini output:", text, parseError);
+        }
+
+        campaignTitle = parsedData.title?.trim() || prompt.trim();
+        questions = parsedData.questions || [];
+      } else {
+        console.log("No valid GEMINI_API_KEY configured. Falling back to local template questions generator.");
+        const lowerTopic = prompt.toLowerCase();
+        
+        if (lowerTopic.includes("course") || lowerTopic.includes("class") || lowerTopic.includes("training") || lowerTopic.includes("workshop") || lowerTopic.includes("seminar")) {
+          questions = [
+            `How would you rate the overall structure of the ${prompt}?`,
+            "How clear and understandable were the instructor's explanations?",
+            "Rate the relevance and helpfulness of the hands-on exercises or assignments.",
+            "How satisfied are you with the pacing and schedule of the sessions?",
+            "How well did this program meet your expectations?"
+          ];
+        } else if (lowerTopic.includes("product") || lowerTopic.includes("app") || lowerTopic.includes("software") || lowerTopic.includes("tool")) {
+          questions = [
+            `How would you rate the ease of use and user interface of ${prompt}?`,
+            "How satisfied are you with the features and capabilities provided?",
+            "How would you rate the performance, speed, and reliability?",
+            "Rate the helpfulness of the documentation, onboarding, or customer support.",
+            "How likely are you to recommend this product to a colleague?"
+          ];
+        } else if (lowerTopic.includes("event") || lowerTopic.includes("conference") || lowerTopic.includes("meetup")) {
+          questions = [
+            `How would you rate the quality of the speakers and sessions at ${prompt}?`,
+            "How satisfied were you with the venue, logistics, or platform used?",
+            "Rate the networking opportunities and interaction with other attendees.",
+            "How would you rate the overall value and learning from the event?",
+            "How likely are you to attend our future events?"
+          ];
+        } else {
+          questions = [
+            `How satisfied are you with the overall quality and experience of ${prompt}?`,
+            "How clear was the communication and guidance provided?",
+            "Rate the responsiveness and support of the coordinators/instructors.",
+            "How relevant was this content to your professional or personal needs?",
+            "Would you recommend this program or activity to others?"
+          ];
+        }
       }
-
-      let campaignTitle = parsedData.title?.trim() || prompt.trim();
-      let questions = parsedData.questions;
 
       // Fallback questions if parsing empty or failed
       if (!Array.isArray(questions) || questions.length === 0) {
