@@ -117,45 +117,51 @@ function ensureDbExists() {
       fs.mkdirSync(dir, { recursive: true });
     }
     if (!fs.existsSync(DB_PATH)) {
-      const initialDb: DatabaseSchema = {
-        campaigns: [
-          {
-            id: "iot-fullstack-mock-id",
-            title: "Sample: IoT & Fullstack July Group",
-            form_schema: [
-              "How would you rate the quality of IoT hardware lab hours?",
-              "How clear were the explanations of Next.js App Router and APIs?",
-              "Rate the design and debugging support during team project prototyping.",
-              "How satisfied are you with the post-batch placement orientation?"
-            ],
-            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-          }
-        ],
-        responses: [
-          {
-            id: "resp-1",
-            campaign_id: "iot-fullstack-mock-id",
-            ratings: { "0": 5, "1": 4, "2": 5, "3": 4 },
-            suggestion_text: "Lab hours were amazing! I wish we covered some advanced ESP32 WebSockets integrations earlier.",
-            created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          {
-            id: "resp-2",
-            campaign_id: "iot-fullstack-mock-id",
-            ratings: { "0": 4, "1": 5, "2": 4, "3": 5 },
-            suggestion_text: "Perfect curriculum spacing. The instructor explained the differences between server and client components very clearly.",
-            created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          {
-            id: "resp-3",
-            campaign_id: "iot-fullstack-mock-id",
-            ratings: { "0": 3, "1": 4, "2": 3, "3": 3 },
-            suggestion_text: "A bit fast-paced on the database setup days, but overall very high quality material and support.",
-            created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-          }
-        ]
-      };
-      fs.writeFileSync(DB_PATH, JSON.stringify(initialDb, null, 2), "utf-8");
+      const seedPath = path.join(process.cwd(), "data", "db.json");
+      if (fs.existsSync(seedPath)) {
+        const seedData = fs.readFileSync(seedPath, "utf-8");
+        fs.writeFileSync(DB_PATH, seedData, "utf-8");
+      } else {
+        const initialDb: DatabaseSchema = {
+          campaigns: [
+            {
+              id: "iot-fullstack-mock-id",
+              title: "Sample: IoT & Fullstack July Group",
+              form_schema: [
+                "How would you rate the quality of IoT hardware lab hours?",
+                "How clear were the explanations of Next.js App Router and APIs?",
+                "Rate the design and debugging support during team project prototyping.",
+                "How satisfied are you with the post-batch placement orientation?"
+              ],
+              created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          ],
+          responses: [
+            {
+              id: "resp-1",
+              campaign_id: "iot-fullstack-mock-id",
+              ratings: { "0": 5, "1": 4, "2": 5, "3": 4 },
+              suggestion_text: "Lab hours were amazing! I wish we covered some advanced ESP32 WebSockets integrations earlier.",
+              created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+            },
+            {
+              id: "resp-2",
+              campaign_id: "iot-fullstack-mock-id",
+              ratings: { "0": 4, "1": 5, "2": 4, "3": 5 },
+              suggestion_text: "Perfect curriculum spacing. The instructor explained the differences between server and client components very clearly.",
+              created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+            },
+            {
+              id: "resp-3",
+              campaign_id: "iot-fullstack-mock-id",
+              ratings: { "0": 3, "1": 4, "2": 3, "3": 3 },
+              suggestion_text: "A bit fast-paced on the database setup days, but overall very high quality material and support.",
+              created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+            }
+          ]
+        };
+        fs.writeFileSync(DB_PATH, JSON.stringify(initialDb, null, 2), "utf-8");
+      }
     }
   } catch (err) {
     console.error("ensureDbExists failed, using memory DB fallback:", err);

@@ -7,7 +7,9 @@ import {
   GraduationCap,
   Vote,
   Compass,
-  Zap
+  Zap,
+  Lock,
+  User
 } from "lucide-react";
 import { Campaign } from "./types";
 import { CampaignCreator } from "./components/CampaignCreator";
@@ -16,8 +18,88 @@ import { SqlSchemaCard } from "./components/SqlSchemaCard";
 import { CampaignReport } from "./components/CampaignReport";
 import { FeedbackForm } from "./components/FeedbackForm";
 
+function AdminLogin({ onLogin }: { onLogin: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === "admin" && password === "admin") {
+      sessionStorage.setItem("admin_auth", "true");
+      onLogin();
+    } else {
+      setError("Invalid credentials. Enter admin / admin.");
+    }
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto py-12 px-4">
+      <div className="ambient-card rounded-3xl p-8 sm:p-10 space-y-6">
+        <div className="text-center space-y-2">
+          <div className="w-12 h-12 bg-teal-50 text-teal-650 rounded-2xl flex items-center justify-center mx-auto border border-teal-100">
+            <Lock className="w-6 h-6 stroke-[1.5]" />
+          </div>
+          <h2 className="text-2xl font-black text-neutral-950 tracking-tight">Admin Authentication</h2>
+          <p className="text-xs text-neutral-400 font-mono tracking-widest uppercase">Console Security Check</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-neutral-450 font-mono tracking-wider uppercase">Username</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                <User className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 focus:border-teal-500 bg-neutral-50 focus:bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-neutral-450 font-mono tracking-wider uppercase">Password</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
+                <Lock className="w-4 h-4" />
+              </span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 focus:border-teal-500 bg-neutral-50 focus:bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                required
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs font-semibold text-red-500 font-mono text-center pt-1">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            className="w-full py-3.5 rounded-xl bg-teal-605 text-white font-bold text-xs uppercase tracking-wider font-mono hover:bg-teal-700 active:scale-[0.98] transition cursor-pointer"
+          >
+            Access Console
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem("admin_auth") === "true";
+  });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignMap, setCampaignMap] = useState<Record<string, Campaign>>({});
   const [loadingList, setLoadingList] = useState(false);
@@ -240,38 +322,46 @@ export default function App() {
 
         {/* VIEW 2: ADMIN PRIMARY PANEL (Campaign Generator & Lists) */}
         {currentPath === "/admin" && (
-          <div className="space-y-8">
-            <div className="text-left border-b border-neutral-150 pb-5">
-              <h1 className="text-2xl font-black text-neutral-950 tracking-tight leading-none mb-2">
-                Administrative Suite
-              </h1>
-              <p className="text-[10px] text-neutral-400 font-mono tracking-widest uppercase flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-teal-600" />
-                <span>SIMPLESPHERE CONTROL CONSOLE</span>
-              </p>
-            </div>
-
-            {/* Bento Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
-              {/* Creator Box */}
-              <div className="lg:col-span-5 h-full">
-                <CampaignCreator onCreated={(id) => navigate(`/admin/${id}`)} />
+          !isAdminAuthenticated ? (
+            <AdminLogin onLogin={() => setIsAdminAuthenticated(true)} />
+          ) : (
+            <div className="space-y-8">
+              <div className="text-left border-b border-neutral-150 pb-5">
+                <h1 className="text-2xl font-black text-neutral-950 tracking-tight leading-none mb-2">
+                  Administrative Suite
+                </h1>
+                <p className="text-[10px] text-neutral-400 font-mono tracking-widest uppercase flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-teal-600" />
+                  <span>SIMPLESPHERE CONTROL CONSOLE</span>
+                </p>
               </div>
 
-              {/* Lists and Database Info */}
-              <div className="lg:col-span-7 space-y-8">
-                <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
-                <SqlSchemaCard />
-              </div>
+              {/* Bento Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
+                {/* Creator Box */}
+                <div className="lg:col-span-5 h-full">
+                  <CampaignCreator onCreated={(id) => navigate(`/admin/${id}`)} />
+                </div>
+
+                {/* Lists and Database Info */}
+                <div className="lg:col-span-7 space-y-8">
+                  <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
+                  <SqlSchemaCard />
+                </div>
+
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* VIEW 3: ADMIN REPORT DASHBOARD */}
         {isAdminReportRoute && adminReportId && (
-          <CampaignReport id={adminReportId} onBack={() => navigate("/admin")} />
+          !isAdminAuthenticated ? (
+            <AdminLogin onLogin={() => setIsAdminAuthenticated(true)} />
+          ) : (
+            <CampaignReport id={adminReportId} onBack={() => navigate("/admin")} />
+          )
         )}
 
         {/* VIEW 4: ANONYMOUS STUDENT RATING SURVEY */}
