@@ -25,8 +25,7 @@ import {
   Users,
   LineChart,
   Shield,
-  Activity,
-  Trash2
+  Activity
 } from "lucide-react";
 import { CampaignAnalytics } from "../types";
 
@@ -43,24 +42,6 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
   const [exporting, setExporting] = useState(false);
 
   const studentFormUrl = `${window.location.origin}/f/${id}`;
-
-  const handleDeleteCampaign = async () => {
-    if (!window.confirm("Are you sure you want to permanently delete this feedback campaign and all its responses? This action cannot be undone.")) {
-      return;
-    }
-    try {
-      const response = await fetch(`/api/campaigns/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to delete campaign");
-      }
-      onBack();
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Failed to delete campaign");
-    }
-  };
 
   const fetchAnalytics = async () => {
     try {
@@ -94,7 +75,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
     }
   };
 
-  let handleDownloadPdf = async () => {};
+  let handleDownloadPdf = async () => { };
 
   if (loading) {
     return (
@@ -287,7 +268,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(7);
       pdf.setTextColor(96, 165, 250); // Light Blue Text
-      pdf.text(`M${(idx+1).toString().padStart(2, '0')}`, 21.5, currentY + 3.8);
+      pdf.text(`M${(idx + 1).toString().padStart(2, '0')}`, 21.5, currentY + 3.8);
 
       // Render Question Text
       pdf.setFont("helvetica", "bold");
@@ -461,13 +442,6 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={handleDeleteCampaign}
-            className="py-2 px-4 rounded-xl border border-red-200 hover:border-red-300 hover:bg-red-50 text-xs font-semibold text-red-650 transition active:scale-[0.98] cursor-pointer font-mono text-[11px] inline-flex items-center gap-1.5"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>DELETE CAMPAIGN</span>
-          </button>
-          <button
             onClick={fetchAnalytics}
             className="py-2 px-4 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-xs font-semibold text-neutral-800 transition active:scale-[0.98] cursor-pointer font-mono text-[11px]"
           >
@@ -476,11 +450,10 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
           <button
             onClick={handleDownloadPdf}
             disabled={totalResponses === 0 || exporting}
-            className={`inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-semibold transition active:scale-[0.98] cursor-pointer border ${
-              totalResponses === 0
+            className={`inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-semibold transition active:scale-[0.98] cursor-pointer border ${totalResponses === 0
                 ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
                 : "bg-teal-650 border-teal-650 text-white hover:bg-teal-700 shadow-sm shadow-teal-500/10 hover:shadow-md hover:shadow-teal-500/20"
-            }`}
+              }`}
           >
             <FileDown className="w-4 h-4" />
             <span>{exporting ? "Compiling PDF..." : "Download Executive Summary"}</span>
@@ -490,7 +463,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
 
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
+
         {/* Left Side Panel: Ingress Portal information */}
         <div className="lg:col-span-4 space-y-6">
           <div className="ambient-card rounded-3xl p-6 sm:p-8 space-y-6">
@@ -545,7 +518,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
             <div className="p-4 bg-white border border-neutral-150 rounded-2xl shadow-xs relative block select-none">
               <QRCodeSVG value={studentFormUrl} size={150} level="M" includeMargin={false} />
             </div>
-            
+
             <div className="space-y-4 w-full">
               <div className="space-y-1">
                 <p className="text-[9px] text-neutral-400 font-mono leading-none tracking-widest uppercase">INGRESS COMPILER URL</p>
@@ -586,7 +559,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
 
         {/* Right Side Panel: Primary report display */}
         <div id="analytics-report-view" className="lg:col-span-8 space-y-8 bg-white border border-neutral-200 rounded-3xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
-          
+
           {/* Header layout block */}
           <div className="border-b border-neutral-200 pb-5 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -619,14 +592,14 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
             </div>
           ) : (
             <div className="space-y-10">
-              
+
               {/* Dimensions Bar Chart (No grid lines, gorgeous tech teal bars) */}
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-widest font-mono flex items-center gap-2">
                   <LineChart className="w-4 h-4 text-teal-600" />
                   <span>COMPREHENSIVE RATINGS INDEX</span>
                 </h4>
-                
+
                 <div className="h-[250px] w-full font-mono text-[10px] relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -667,13 +640,13 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
                     </span>
                     <div className="flex-1 space-y-2 text-xs">
                       <p className="font-bold text-neutral-800 leading-snug">{av.question}</p>
-                      
+
                       {/* Distribution weights */}
                       <div className="flex items-center gap-2 pt-1">
                         <span className="text-[9px] text-neutral-400 font-mono font-bold uppercase tracking-wider">WEIGHT DENSITY:</span>
                         <div className="flex items-center gap-3 font-mono text-[9px] text-neutral-500">
                           {[5, 4, 3, 2, 1].map((stars) => {
-                            const count = av.distribution[stars as 1|2|3|4|5] || 0;
+                            const count = av.distribution[stars as 1 | 2 | 3 | 4 | 5] || 0;
                             return (
                               <span key={stars} className="flex items-center gap-0.5">
                                 <span className={count > 0 ? "text-neutral-800 font-bold" : "text-neutral-400"}>{stars}★</span>
@@ -703,7 +676,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
                     Aggregated distribution densities compiled across all score parameters. Shows frequency weights on a course-wide level to trace micro-trends.
                   </p>
                 </div>
-                
+
                 <div className="h-[180px] w-full flex items-center justify-center font-sans text-xs">
                   {pieChartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">

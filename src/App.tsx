@@ -47,7 +47,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setCampaigns(data);
-        
+
         // Cache map
         const map: Record<string, Campaign> = {};
         data.forEach((c: Campaign) => {
@@ -118,31 +118,13 @@ export default function App() {
     }
   };
 
-  const handleDeleteCampaign = async (id: string) => {
-    if (!window.confirm("Are you sure you want to permanently delete this feedback campaign and all its responses? This action cannot be undone.")) {
-      return;
-    }
-    try {
-      const res = await fetch(`/api/campaigns/${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error("Failed to delete campaign");
-      }
-      loadCampaigns();
-    } catch (err: any) {
-      console.error("Delete error", err);
-      alert(err.message || "Failed to delete campaign");
-    }
-  };
-
   // Check if we are viewing a specific report: `/admin/:id`
   const isAdminReportRoute = currentPath.startsWith("/admin/") && currentPath !== "/admin";
   const adminReportId = isAdminReportRoute ? currentPath.split("/admin/")[1] : null;
 
   return (
     <div className="min-h-screen bg-gradient-mesh bg-grid-pattern text-neutral-800 font-sans antialiased selection:bg-primary selection:text-white flex flex-col justify-between">
-      
+
       {/* Universal Branded Header - Hidden completely in student portal view to remove distractions */}
       {!isStudentRoute && (
         <header className="border-b border-neutral-200/60 bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-[0_2px_15px_-5px_rgba(0,0,0,0.02)]">
@@ -161,11 +143,10 @@ export default function App() {
             <nav className="flex items-center gap-2">
               <button
                 onClick={() => navigate("/admin")}
-                className={`py-1.5 px-3.5 rounded-xl text-[10px] font-bold font-mono tracking-wider uppercase border transition duration-155 cursor-pointer ${
-                  currentPath.startsWith("/admin")
+                className={`py-1.5 px-3.5 rounded-xl text-[10px] font-bold font-mono tracking-wider uppercase border transition duration-155 cursor-pointer ${currentPath.startsWith("/admin")
                     ? "bg-primary text-white border-primary shadow-sm"
                     : "bg-white text-neutral-750 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
-                }`}
+                  }`}
               >
                 Control Panel
               </button>
@@ -176,26 +157,26 @@ export default function App() {
 
       {/* Main Container */}
       <main className={`flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${isStudentRoute ? "py-12 flex items-center justify-center min-h-[85vh]" : "py-10"}`}>
-        
+
         {/* VIEW 1: GATE/HOME GRID */}
         {currentPath === "/" && (
           <div className="space-y-16 py-4">
-            
+
             {/* Hero Splash banner */}
             <div className="text-center max-w-4xl mx-auto space-y-6">
               <div className="inline-flex items-center gap-2 px-4.5 py-1.5 rounded-full text-xs font-bold bg-white border border-neutral-200 shadow-xs text-neutral-600 font-mono">
                 <Sparkles className="w-4 h-4 text-teal-600" />
                 <span>GEMINI COURSE EVALUATION CO-PILOT</span>
               </div>
-              
+
               <h1 className="text-4xl sm:text-6xl font-black text-neutral-950 tracking-tight leading-none">
                 Autonomous Course Feedback & Metrics
               </h1>
-              
+
               <p className="text-neutral-500 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed font-sans font-medium">
                 simplesphere optimizes structural training metrics through Large Language models, allowing students to submit aggregate grades cleanly and 100% anonymously.
               </p>
-              
+
               <div className="flex justify-center gap-3 pt-2">
                 <button
                   onClick={() => navigate("/admin")}
@@ -252,7 +233,7 @@ export default function App() {
                 <h3 className="text-lg font-bold text-neutral-905">Training Modules Control Console</h3>
                 <p className="text-xs text-neutral-400 font-mono tracking-widest uppercase">AVAILABLE ACTIVE ASSESSMENTS</p>
               </div>
-              <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} onDelete={handleDeleteCampaign} />
+              <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
             </div>
           </div>
         )}
@@ -272,7 +253,7 @@ export default function App() {
 
             {/* Bento Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              
+
               {/* Creator Box */}
               <div className="lg:col-span-5 h-full">
                 <CampaignCreator onCreated={(id) => navigate(`/admin/${id}`)} />
@@ -280,7 +261,7 @@ export default function App() {
 
               {/* Lists and Database Info */}
               <div className="lg:col-span-7 space-y-8">
-                <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} onDelete={handleDeleteCampaign} />
+                <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
                 <SqlSchemaCard />
               </div>
 

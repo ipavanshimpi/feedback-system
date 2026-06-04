@@ -219,15 +219,6 @@ export function createCampaign(title: string, form_schema: string[]): Campaign {
   return newCampaign;
 }
 
-export function deleteCampaign(id: string): boolean {
-  const db = readDb();
-  const initialLength = db.campaigns.length;
-  db.campaigns = db.campaigns.filter(c => c.id !== id);
-  db.responses = db.responses.filter(r => r.campaign_id !== id);
-  writeDb(db);
-  return db.campaigns.length < initialLength;
-}
-
 export function getResponsesByCampaignId(campaignId: string): FeedbackResponse[] {
   const db = readDb();
   return db.responses.filter(r => r.campaign_id === campaignId);
@@ -294,20 +285,6 @@ app.get("/api/campaigns/:id", (req, res) => {
   }
 });
 
-// API - Delete a campaign
-app.delete("/api/campaigns/:id", (req, res) => {
-  const { id } = req.params;
-  try {
-    const success = deleteCampaign(id);
-    if (!success) {
-      return res.status(404).json({ error: "Campaign not found" });
-    }
-    res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message || "Failed to delete campaign" });
-  }
-});
-
 // API - Create new campaign via Gemini prompt
 app.post("/api/campaigns", async (req, res) => {
   const { prompt } = req.body;
@@ -318,7 +295,7 @@ app.post("/api/campaigns", async (req, res) => {
 
   try {
     let questions: string[] = [];
-    
+
     // Extract title early so it can be used in local fallbacks and Gemini calls
     let campaignTitle = prompt.trim();
     const exactTitleMatch = prompt.match(/exact title:\s*["']([^"']+)["']/i);
@@ -353,7 +330,7 @@ app.post("/api/campaigns", async (req, res) => {
         model: "gemini-3.5-flash",
         contents: `Create feedback questions and title for the topic: "${prompt}"`,
         config: {
-          systemInstruction: 
+          systemInstruction:
             "You are an API that generates course evaluation campaigns. The user will provide a topic or prompt.\n" +
             "Generate a professional JSON object with two fields:\n" +
             "1. 'title': A clean, concise, elegant campaign/course title. CRITICAL RULE: If the user's prompt contains or specifies a title (e.g. in quotes or as a clear title like 'Advanced Technical Training & Mentorship Feedback Survey'), you MUST use that exact title string without modifying, shortening, or altering it.\n" +
@@ -386,7 +363,7 @@ app.post("/api/campaigns", async (req, res) => {
       questions = parsedData.questions || [];
     } else {
       console.log("No valid GEMINI_API_KEY configured. Falling back to local template questions generator.");
-      
+
       // Try to parse numbered questions/dimensions from the prompt (if any)
       const lines = prompt.split('\n');
       const numberedItems: string[] = [];
@@ -411,7 +388,7 @@ app.post("/api/campaigns", async (req, res) => {
         questions = numberedItems;
       } else {
         const lowerTopic = prompt.toLowerCase();
-        
+
         if (lowerTopic.includes("course") || lowerTopic.includes("class") || lowerTopic.includes("training") || lowerTopic.includes("workshop") || lowerTopic.includes("seminar")) {
           questions = [
             `How would you rate the overall structure of the ${campaignTitle}?`,
