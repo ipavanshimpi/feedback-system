@@ -3,7 +3,10 @@ import path from "path";
 import crypto from "crypto";
 import { Campaign, FeedbackResponse } from "../src/types";
 
-const DB_PATH = path.join(process.cwd(), "data", "db.json");
+const isVercel = process.env.VERCEL === "1";
+const DB_PATH = isVercel
+  ? path.join("/tmp", "db.json")
+  : path.join(process.cwd(), "data", "db.json");
 
 interface DatabaseSchema {
   campaigns: Campaign[];
