@@ -295,7 +295,29 @@ app.post("/api/campaigns", async (req, res) => {
 
   try {
     let questions: string[] = [];
+    
+    // Extract title early so it can be used in local fallbacks and Gemini calls
     let campaignTitle = prompt.trim();
+    const exactTitleMatch = prompt.match(/exact title:\s*["']([^"']+)["']/i);
+    if (exactTitleMatch && exactTitleMatch[1]) {
+      campaignTitle = exactTitleMatch[1];
+    } else {
+      const quoteMatch = prompt.match(/"([^"]{10,120})"/);
+      if (quoteMatch && quoteMatch[1]) {
+        campaignTitle = quoteMatch[1];
+      }
+    }
+
+    const cleanPrompt = prompt.trim();
+    if (
+      cleanPrompt.length < 100 &&
+      !cleanPrompt.includes("\n") &&
+      !cleanPrompt.includes(".") &&
+      !cleanPrompt.toLowerCase().startsWith("create ") &&
+      !cleanPrompt.toLowerCase().startsWith("generate ")
+    ) {
+      campaignTitle = cleanPrompt;
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
     const hasApiKey = apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim() !== "";
@@ -337,51 +359,76 @@ app.post("/api/campaigns", async (req, res) => {
         console.error("Failed to parse Gemini output:", text, parseError);
       }
 
-      campaignTitle = parsedData.title?.trim() || prompt.trim();
+      campaignTitle = parsedData.title?.trim() || campaignTitle;
       questions = parsedData.questions || [];
     } else {
       console.log("No valid GEMINI_API_KEY configured. Falling back to local template questions generator.");
-      const lowerTopic = prompt.toLowerCase();
       
-      if (lowerTopic.includes("course") || lowerTopic.includes("class") || lowerTopic.includes("training") || lowerTopic.includes("workshop") || lowerTopic.includes("seminar")) {
-        questions = [
-          `How would you rate the overall structure of the ${prompt}?`,
-          "How clear and understandable were the instructor's explanations?",
-          "Rate the relevance and helpfulness of the hands-on exercises or assignments.",
-          "How satisfied are you with the pacing and schedule of the sessions?",
-          "How well did this program meet your expectations?"
-        ];
-      } else if (lowerTopic.includes("product") || lowerTopic.includes("app") || lowerTopic.includes("software") || lowerTopic.includes("tool")) {
-        questions = [
-          `How would you rate the ease of use and user interface of ${prompt}?`,
-          "How satisfied are you with the features and capabilities provided?",
-          "How would you rate the performance, speed, and reliability?",
-          "Rate the helpfulness of the documentation, onboarding, or customer support.",
-          "How likely are you to recommend this product to a colleague?"
-        ];
-      } else if (lowerTopic.includes("event") || lowerTopic.includes("conference") || lowerTopic.includes("meetup")) {
-        questions = [
-          `How would you rate the quality of the speakers and sessions at ${prompt}?`,
-          "How satisfied were you with the venue, logistics, or platform used?",
-          "Rate the networking opportunities and interaction with other attendees.",
-          "How would you rate the overall value and learning from the event?",
-          "How likely are you to attend our future events?"
-        ];
+      // Try to parse numbered questions/dimensions from the prompt (if any)
+      const lines = prompt.split('\n');
+      const numberedItems: string[] = [];
+      for (const line of lines) {
+        const match = line.trim().match(/^\d+[\.\)]\s*(.+)$/i);
+        if (match && match[1]) {
+          const content = match[1].trim();
+          let question = content;
+          if (!content.toLowerCase().startsWith("how") && !content.toLowerCase().startsWith("rate") && !content.toLowerCase().startsWith("would") && !content.toLowerCase().startsWith("clarity")) {
+            question = `How would you rate the ${content.charAt(0).toLowerCase() + content.slice(1)}`;
+          } else if (content.toLowerCase().startsWith("clarity")) {
+            question = `How would you rate the clarity ${content.slice(7)}`;
+          }
+          if (!question.endsWith("?") && !question.endsWith(".")) {
+            question += "?";
+          }
+          numberedItems.push(question);
+        }
+      }
+
+      if (numberedItems.length >= 3) {
+        questions = numberedItems;
       } else {
-        questions = [
-          `How satisfied are you with the overall quality and experience of ${prompt}?`,
-          "How clear was the communication and guidance provided?",
-          "Rate the responsiveness and support of the coordinators/instructors.",
-          "How relevant was this content to your professional or personal needs?",
-          "Would you recommend this program or activity to others?"
-        ];
+        const lowerTopic = prompt.toLowerCase();
+        
+        if (lowerTopic.includes("course") || lowerTopic.includes("class") || lowerTopic.includes("training") || lowerTopic.includes("workshop") || lowerTopic.includes("seminar")) {
+          questions = [
+            `How would you rate the overall structure of the ${campaignTitle}?`,
+            "How clear and understandable were the instructor's explanations?",
+            "Rate the relevance and helpfulness of the hands-on exercises or assignments.",
+            "How satisfied are you with the pacing and schedule of the sessions?",
+            "How well did this program meet your expectations?"
+          ];
+        } else if (lowerTopic.includes("product") || lowerTopic.includes("app") || lowerTopic.includes("software") || lowerTopic.includes("tool")) {
+          questions = [
+            `How would you rate the ease of use and user interface of ${campaignTitle}?`,
+            "How satisfied are you with the features and capabilities provided?",
+            "How would you rate the performance, speed, and reliability?",
+            "Rate the helpfulness of the documentation, onboarding, or customer support.",
+            "How likely are you to recommend this product to a colleague?"
+          ];
+        } else if (lowerTopic.includes("event") || lowerTopic.includes("conference") || lowerTopic.includes("meetup")) {
+          questions = [
+            `How would you rate the quality of the speakers and sessions at ${campaignTitle}?`,
+            "How satisfied were you with the venue, logistics, or platform used?",
+            "Rate the networking opportunities and interaction with other attendees.",
+            "How would you rate the overall value and learning from the event?",
+            "How likely are you to attend our future events?"
+          ];
+        } else {
+          questions = [
+            `How satisfied are you with the overall quality and experience of ${campaignTitle}?`,
+            "How clear was the communication and guidance provided?",
+            "Rate the responsiveness and support of the coordinators/instructors.",
+            "How relevant was this content to your professional or personal needs?",
+            "Would you recommend this program or activity to others?"
+          ];
+        }
       }
     }
 
     // Fallback questions if parsing empty or failed
     if (!Array.isArray(questions) || questions.length === 0) {
       questions = [
-        `How would you rate the overall explanation on ${prompt}?`,
+        `How would you rate the overall explanation on ${campaignTitle}?`,
         "How clear were the class materials and examples provided?",
         "Rate the instructor's responsiveness to custom queries and doubts.",
         "How satisfied are you with the scheduling and pacing of the course?"
@@ -393,29 +440,6 @@ app.post("/api/campaigns", async (req, res) => {
     if (questions.length < 3) {
       questions.push(`How helpful was the practical lab work about ${campaignTitle}?`);
       questions.push("Would you recommend this course module to future batches?");
-    }
-
-    // Ensure that if the prompt itself is a short clean line, we prioritize using it exactly as the title
-    const cleanPrompt = prompt.trim();
-    if (
-      cleanPrompt.length < 100 &&
-      !cleanPrompt.includes("\n") &&
-      !cleanPrompt.includes(".") &&
-      !cleanPrompt.toLowerCase().startsWith("create ") &&
-      !cleanPrompt.toLowerCase().startsWith("generate ")
-    ) {
-      campaignTitle = cleanPrompt;
-    }
-
-    // If the prompt explicitly mentions exact title: "..." (in the user's request) let's extract it if possible
-    const exactTitleMatch = prompt.match(/exact title:\s*["']([^"']+)["']/i);
-    if (exactTitleMatch && exactTitleMatch[1]) {
-      campaignTitle = exactTitleMatch[1];
-    } else {
-      const quoteMatch = prompt.match(/"([^"]{10,120})"/);
-      if (quoteMatch && quoteMatch[1]) {
-        campaignTitle = quoteMatch[1];
-      }
     }
 
     // Save to database
