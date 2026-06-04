@@ -219,6 +219,15 @@ export function createCampaign(title: string, form_schema: string[]): Campaign {
   return newCampaign;
 }
 
+export function deleteCampaign(id: string): boolean {
+  const db = readDb();
+  const initialLength = db.campaigns.length;
+  db.campaigns = db.campaigns.filter(c => c.id !== id);
+  db.responses = db.responses.filter(r => r.campaign_id !== id);
+  writeDb(db);
+  return db.campaigns.length < initialLength;
+}
+
 export function getResponsesByCampaignId(campaignId: string): FeedbackResponse[] {
   const db = readDb();
   return db.responses.filter(r => r.campaign_id === campaignId);
@@ -282,6 +291,20 @@ app.get("/api/campaigns/:id", (req, res) => {
     res.json(campaign);
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to load campaign" });
+  }
+});
+
+// API - Delete a campaign
+app.delete("/api/campaigns/:id", (req, res) => {
+  const { id } = req.params;
+  try {
+    const success = deleteCampaign(id);
+    if (!success) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || "Failed to delete campaign" });
   }
 });
 

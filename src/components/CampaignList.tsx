@@ -1,10 +1,11 @@
 import React from "react";
-import { Calendar, ChevronRight, BarChart3, Database } from "lucide-react";
+import { Calendar, ChevronRight, BarChart3, Database, Trash2 } from "lucide-react";
 import { Campaign } from "../types";
 
 interface CampaignListProps {
   campaigns: Campaign[];
   onSelect: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 export function CampaignList({ campaigns, onSelect }: CampaignListProps) {
@@ -66,11 +67,24 @@ export function CampaignList({ campaigns, onSelect }: CampaignListProps) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-3 shrink-0">
                 <span className="text-xs text-neutral-400 font-mono font-medium opacity-0 group-hover:opacity-100 group-hover:text-teal-650 transition-all duration-155 flex items-center gap-1">
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span>ENGAGE</span>
                 </span>
+                {onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onDelete(camp.id);
+                    }}
+                    className="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors duration-150 cursor-pointer"
+                    title="Delete Campaign"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
                 <ChevronRight className="w-4 h-4 text-neutral-300 group-hover:text-teal-650 transition duration-155 transform group-hover:translate-x-0.5" />
               </div>
             </button>

@@ -118,6 +118,24 @@ export default function App() {
     }
   };
 
+  const handleDeleteCampaign = async (id: string) => {
+    if (!window.confirm("Are you sure you want to permanently delete this feedback campaign and all its responses? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to delete campaign");
+      }
+      loadCampaigns();
+    } catch (err: any) {
+      console.error("Delete error", err);
+      alert(err.message || "Failed to delete campaign");
+    }
+  };
+
   // Check if we are viewing a specific report: `/admin/:id`
   const isAdminReportRoute = currentPath.startsWith("/admin/") && currentPath !== "/admin";
   const adminReportId = isAdminReportRoute ? currentPath.split("/admin/")[1] : null;
@@ -234,7 +252,7 @@ export default function App() {
                 <h3 className="text-lg font-bold text-neutral-905">Training Modules Control Console</h3>
                 <p className="text-xs text-neutral-400 font-mono tracking-widest uppercase">AVAILABLE ACTIVE ASSESSMENTS</p>
               </div>
-              <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
+              <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} onDelete={handleDeleteCampaign} />
             </div>
           </div>
         )}
@@ -262,7 +280,7 @@ export default function App() {
 
               {/* Lists and Database Info */}
               <div className="lg:col-span-7 space-y-8">
-                <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
+                <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} onDelete={handleDeleteCampaign} />
                 <SqlSchemaCard />
               </div>
 

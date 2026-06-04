@@ -25,7 +25,8 @@ import {
   Users,
   LineChart,
   Shield,
-  Activity
+  Activity,
+  Trash2
 } from "lucide-react";
 import { CampaignAnalytics } from "../types";
 
@@ -42,6 +43,24 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
   const [exporting, setExporting] = useState(false);
 
   const studentFormUrl = `${window.location.origin}/f/${id}`;
+
+  const handleDeleteCampaign = async () => {
+    if (!window.confirm("Are you sure you want to permanently delete this feedback campaign and all its responses? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/campaigns/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete campaign");
+      }
+      onBack();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to delete campaign");
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
@@ -441,6 +460,13 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleDeleteCampaign}
+            className="py-2 px-4 rounded-xl border border-red-200 hover:border-red-300 hover:bg-red-50 text-xs font-semibold text-red-650 transition active:scale-[0.98] cursor-pointer font-mono text-[11px] inline-flex items-center gap-1.5"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>DELETE CAMPAIGN</span>
+          </button>
           <button
             onClick={fetchAnalytics}
             className="py-2 px-4 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-xs font-semibold text-neutral-800 transition active:scale-[0.98] cursor-pointer font-mono text-[11px]"
