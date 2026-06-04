@@ -8,7 +8,7 @@ interface CampaignListProps {
   onDelete?: (id: string) => void;
 }
 
-export function CampaignList({ campaigns, onSelect }: CampaignListProps) {
+export function CampaignList({ campaigns, onSelect, onDelete }: CampaignListProps) {
   if (campaigns.length === 0) {
     return (
       <div className="ambient-card rounded-3xl p-8 text-center flex flex-col items-center justify-center min-h-[220px]">
