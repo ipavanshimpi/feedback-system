@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-import app from "./server/app";
+import app from "./api/index";
 import dotenv from "dotenv";
 
 // Load .env.local first if it exists, otherwise fall back to .env
