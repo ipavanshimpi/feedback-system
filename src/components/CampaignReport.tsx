@@ -41,7 +41,10 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
   const [linkCopied, setLinkCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const studentFormUrl = `${window.location.origin}/f/${id}`;
+  const origin = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1")
+    ? "https://feedback-system-silk-nine.vercel.app"
+    : window.location.origin;
+  const studentFormUrl = `${origin}/f/${id}`;
 
   const fetchAnalytics = async () => {
     try {
