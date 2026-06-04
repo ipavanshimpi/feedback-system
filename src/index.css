@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Map brand blues to the theme variables, replacing student-feedback teal scheme */
+  --color-primary: #1e50ff;
+  --color-primary-hover: #1e40af;
+  --color-brand-blue: #1e50ff;
+  --color-accent-blue: #2563eb;
+  
+  --color-teal-50: rgba(30, 80, 255, 0.05);
+  --color-teal-100: rgba(30, 80, 255, 0.1);
+  --color-teal-200: rgba(30, 80, 255, 0.2);
+  --color-teal-300: #93c5fd;
+  --color-teal-400: #60a5fa;
+  --color-teal-500: #3b82f6;
+  --color-teal-550: #1e50ff;
+  --color-teal-600: #1e50ff;
+  --color-teal-605: #2563eb;
+  --color-teal-650: #1e50ff;
+  --color-teal-700: #1d4ed8;
+  --color-teal-800: #1e3a8a;
+  --color-teal-900: #172554;
+}
+
+/* Custom premium styles */
+@layer utilities {
+  .ambient-card {
+    background: #ffffff;
+    border: 1px solid rgba(30, 80, 255, 0.08);
+    box-shadow: 0 10px 40px -10px rgba(30, 80, 255, 0.02), 
+                0 1px 3px rgba(30, 80, 255, 0.01);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .ambient-card:hover {
+    border-color: rgba(30, 80, 255, 0.2); /* elegant blue transition on hover */
+    box-shadow: 0 20px 50px -15px rgba(30, 80, 255, 0.04),
+                0 1px 4px rgba(30, 80, 255, 0.015);
+  }
+
+  .premium-blur {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .input-focus-ring {
+    transition: all 0.2s ease;
+  }
+
+  .input-focus-ring:focus {
+    outline: none;
+    border-color: #2563eb !important; /* Premium Brand Blue */
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+  }
+
+  /* Website-matching grid lines and meshes */
+  .bg-grid-pattern {
+    background-size: 36px 36px;
+    background-image: 
+      linear-gradient(to right, rgba(37, 99, 235, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(37, 99, 235, 0.03) 1px, transparent 1px);
+  }
+  
+  .bg-gradient-mesh {
+    background: radial-gradient(circle at 5% 5%, rgba(30, 80, 255, 0.06) 0%, transparent 40%),
+                radial-gradient(circle at 95% 40%, rgba(37, 99, 235, 0.03) 0%, transparent 45%),
+                #f8fafm;
+  }
+}
+
+/* Custom Scrollbar for a modern look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+

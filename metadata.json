@@ -1,0 +1,6 @@
+{
+  "name": "simplesphere Feedback Platform",
+  "description": "A professional anonymous feedback platform for corporate training modules, allowing admins to generate AI feedback forms and students to securely submit ratings and suggestions with simplesphere.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
