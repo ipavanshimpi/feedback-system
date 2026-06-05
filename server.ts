@@ -1,9 +1,6 @@
-import express from "express";
+import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
-import app from "./api/index";
-import dotenv from "dotenv";
 
 // Load .env.local first if it exists, otherwise fall back to .env
 const localEnvPath = path.resolve(process.cwd(), ".env.local");
@@ -13,8 +10,13 @@ if (fs.existsSync(localEnvPath)) {
   dotenv.config();
 }
 
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import app from "./api/index";
+
 async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
+
 
   // Vite Integration for static assets or SPA serving
   if (process.env.NODE_ENV !== "production") {
@@ -38,3 +40,4 @@ async function startServer() {
 }
 
 startServer();
+

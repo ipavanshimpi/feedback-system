@@ -49,7 +49,7 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
   const [savingForm, setSavingForm] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  const origin = import.meta.env.VITE_APP_URL || window.location.origin;
+  const origin = (import.meta as any).env?.VITE_APP_URL || window.location.origin;
   const studentFormUrl = `${origin}/f/${id}`;
 
   const fetchAnalytics = async () => {
@@ -304,11 +304,11 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
 
     drawLetterhead();
 
-    // Header - Zoomed in "simplesphere COURSE EVALUATION CO-PILOT" in electric blue
+    // Header - Anonymous Feedback & Computer Generated Print above the title
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
+    pdf.setFontSize(8.5);
     pdf.setTextColor(30, 80, 255); // Brand Electric Blue
-    pdf.text("simplesphere COURSE EVALUATION CO-PILOT", 20, currentY - 1);
+    pdf.text("Anonymous Student Feedback & Computer Generated Print (No Manual Manipulation)", 20, currentY - 1);
 
     // Export Date (Right-aligned)
     pdf.setFont("helvetica", "normal");
@@ -569,8 +569,8 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
             onClick={handleDownloadPdf}
             disabled={totalResponses === 0 || exporting}
             className={`inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-semibold transition active:scale-[0.98] cursor-pointer border ${totalResponses === 0
-                ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
-                : "bg-teal-650 border-teal-650 text-white hover:bg-teal-700 shadow-sm shadow-teal-500/10 hover:shadow-md hover:shadow-teal-500/20"
+              ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
+              : "bg-teal-650 border-teal-650 text-white hover:bg-teal-700 shadow-sm shadow-teal-500/10 hover:shadow-md hover:shadow-teal-500/20"
               }`}
           >
             <FileDown className="w-4 h-4" />
@@ -633,11 +633,10 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
                     type="button"
                     onClick={() => removeQuestionDraft(index)}
                     disabled={editQuestions.length <= 1}
-                    className={`mt-1 w-9 h-9 inline-flex items-center justify-center rounded-xl border transition ${
-                      editQuestions.length <= 1
-                        ? "border-neutral-150 text-neutral-250 cursor-not-allowed"
-                        : "border-neutral-200 text-neutral-500 hover:bg-red-50 hover:text-red-600 hover:border-red-100 cursor-pointer"
-                    }`}
+                    className={`mt-1 w-9 h-9 inline-flex items-center justify-center rounded-xl border transition ${editQuestions.length <= 1
+                      ? "border-neutral-150 text-neutral-250 cursor-not-allowed"
+                      : "border-neutral-200 text-neutral-500 hover:bg-red-50 hover:text-red-600 hover:border-red-100 cursor-pointer"
+                      }`}
                     title="Remove question"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -650,11 +649,10 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
               type="button"
               onClick={addQuestionDraft}
               disabled={editQuestions.length >= 15}
-              className={`inline-flex items-center gap-2 py-2 px-3.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider font-mono transition ${
-                editQuestions.length >= 15
-                  ? "border-neutral-150 text-neutral-350 cursor-not-allowed"
-                  : "border-neutral-200 text-neutral-700 hover:bg-neutral-50 cursor-pointer"
-              }`}
+              className={`inline-flex items-center gap-2 py-2 px-3.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider font-mono transition ${editQuestions.length >= 15
+                ? "border-neutral-150 text-neutral-350 cursor-not-allowed"
+                : "border-neutral-200 text-neutral-700 hover:bg-neutral-50 cursor-pointer"
+                }`}
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Question</span>
@@ -676,11 +674,10 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
             <button
               type="submit"
               disabled={savingForm}
-              className={`inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition active:scale-[0.98] border ${
-                savingForm
-                  ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
-                  : "bg-teal-650 border-teal-650 text-white hover:bg-teal-700 shadow-sm shadow-teal-500/10 cursor-pointer"
-              }`}
+              className={`inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition active:scale-[0.98] border ${savingForm
+                ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
+                : "bg-teal-650 border-teal-650 text-white hover:bg-teal-700 shadow-sm shadow-teal-500/10 cursor-pointer"
+                }`}
             >
               <Save className="w-4 h-4" />
               <span>{savingForm ? "Saving..." : "Save Form"}</span>
@@ -792,9 +789,9 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
           <div className="border-b border-neutral-200 pb-5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black tracking-widest font-mono text-brand-blue uppercase">
-                    simplesphere COURSE EVALUATION CO-PILOT
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-xs font-bold tracking-wider font-mono text-brand-blue uppercase">
+                    Anonymous Student Feedback & Computer Generated Print (No Manual Manipulation)
                   </span>
                 </div>
                 <h3 className="text-2xl font-bold text-neutral-900 tracking-tight">{campaign.title} Metrics</h3>

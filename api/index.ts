@@ -451,6 +451,114 @@ app.get("/api/campaigns/:id", async (req, res) => {
   }
 });
 
+// Prompt builder helper function
+
+export function buildGeminiPrompt(adminPrompt: string): string {
+  // 1. Total questions count parsing
+  let totalQuestionsCount = 0;
+  const totalMatch = adminPrompt.match(/(\d+)\s*questions/i);
+  if (totalMatch) {
+    totalQuestionsCount = parseInt(totalMatch[1], 10);
+  }
+
+  // 2. Category counts parsing
+  let facultyCount = 0;
+  let infraCount = 0;
+  let contentCount = 0;
+  let placementCount = 0;
+
+  const facultyMatch = adminPrompt.match(/(\d+)\s*on\s*(faculty|teaching)/i);
+  if (facultyMatch) facultyCount = parseInt(facultyMatch[1], 10);
+
+  const infraMatch = adminPrompt.match(/(\d+)\s*on\s*(infra|facility|facilities)/i);
+  if (infraMatch) infraCount = parseInt(infraMatch[1], 10);
+
+  const contentMatch = adminPrompt.match(/(\d+)\s*on\s*(course|content|curriculum)/i);
+  if (contentMatch) contentCount = parseInt(contentMatch[1], 10);
+
+  const placementMatch = adminPrompt.match(/(\d+)\s*on\s*(placement|career)/i);
+  if (placementMatch) placementCount = parseInt(placementMatch[1], 10);
+
+  // Extract topic/subject dynamically
+  let extractedTopic = "";
+  const iotMatch = adminPrompt.match(/iot/i);
+  if (iotMatch) {
+    extractedTopic = "IoT";
+  } else {
+    const quoteMatch = adminPrompt.match(/"([^"]+)"|'([^']+)'/);
+    if (quoteMatch) {
+      extractedTopic = quoteMatch[1] || quoteMatch[2];
+    } else {
+      const words = adminPrompt.split(/\s+/).filter(w => w.length > 2 && !/question|faculty|infra|content|placement/i.test(w));
+      if (words.length > 0) {
+        extractedTopic = words[0];
+      }
+    }
+  }
+
+  // Build the rules for category counts
+  let categoryRules = "";
+  if (facultyCount > 0 || infraCount > 0 || contentCount > 0 || placementCount > 0) {
+    categoryRules = "Generate exactly:\n" +
+      (facultyCount > 0 ? `- ${facultyCount} Faculty & Teaching Quality questions\n` : "") +
+      (infraCount > 0 ? `- ${infraCount} Infrastructure & Facilities questions\n` : "") +
+      (contentCount > 0 ? `- ${contentCount} Course Content & Curriculum questions\n` : "") +
+      (placementCount > 0 ? `- ${placementCount} Placement & Career Support questions\n` : "") +
+      "Count the questions before responding to ensure these category counts are met exactly.";
+  } else {
+    categoryRules = "Distribute questions proportionally across these 4 categories:\n" +
+      "- Faculty & Teaching Quality\n" +
+      "- Infrastructure & Facilities\n" +
+      "- Course Content & Curriculum\n" +
+      "- Placement & Career Support";
+  }
+
+  // Build count instruction
+  let countInstruction = "";
+  if (totalQuestionsCount > 0) {
+    countInstruction = `You MUST generate exactly ${totalQuestionsCount} questions. No more, no less. Count them before responding.`;
+  } else {
+    countInstruction = "Generate between 4 and 15 questions in total.";
+  }
+
+  // Build topic specific rules
+  let topicRules = "";
+  if (extractedTopic.toLowerCase().includes("iot")) {
+    topicRules = "Every question must mention IoT, embedded systems, sensors, or related topics to make them highly specific, not generic.";
+  } else if (extractedTopic) {
+    topicRules = `Every question must mention ${extractedTopic} or related concepts to make them highly specific to the subject matter.`;
+  } else {
+    topicRules = "Every question must be specific to the course topic or batch mentioned in the instructions.";
+  }
+
+  return `You are an automated feedback questionnaire generator.
+
+[ADMIN INSTRUCTIONS]
+The text below contains the admin's topic description and instructions.
+Do NOT turn any part of the text below into a question.
+-----
+${adminPrompt}
+-----
+
+[STRICT GENERATION RULES]
+1. Do NOT turn any part of the admin instructions above into a question. For example, if the instructions say "X questions on Y topic", do NOT create a question asking about X questions or Y topic.
+2. ${countInstruction}
+3. ${categoryRules}
+4. ${topicRules}
+5. All questions must be rateable on a 1 to 5 scale (e.g., asking how well or how satisfied they were with a specific aspect).
+6. Return a valid JSON object ONLY. Do NOT wrap in markdown code blocks (no \`\`\`json or \`\`\`). No explanations, no text before, and no text after.
+
+Expected Output JSON Format:
+{
+  "title": "A clean, precise title including the batch/course name (e.g. '${extractedTopic || "Course"} Feedback Form')",
+  "questions": [
+    "Question 1",
+    "Question 2",
+    "..."
+  ]
+}`;
+}
+
 // API - Create new campaign via Gemini prompt
 app.post("/api/campaigns", async (req, res) => {
   const { prompt } = req.body;
@@ -461,28 +569,43 @@ app.post("/api/campaigns", async (req, res) => {
 
   try {
     let questions: string[] = [];
-
-    // Extract title early so it can be used in local fallbacks and Gemini calls
     let campaignTitle = prompt.trim();
+    let hasExplicitTitle = false;
+
+    // Extract title early so it can be used in local fallbacks
     const exactTitleMatch = prompt.match(/exact title:\s*["']([^"']+)["']/i);
     if (exactTitleMatch && exactTitleMatch[1]) {
       campaignTitle = exactTitleMatch[1];
+      hasExplicitTitle = true;
     } else {
       const quoteMatch = prompt.match(/"([^"]{10,120})"/);
       if (quoteMatch && quoteMatch[1]) {
         campaignTitle = quoteMatch[1];
+        hasExplicitTitle = true;
       }
     }
 
-    const cleanPrompt = prompt.trim();
-    if (
-      cleanPrompt.length < 100 &&
-      !cleanPrompt.includes("\n") &&
-      !cleanPrompt.includes(".") &&
-      !cleanPrompt.toLowerCase().startsWith("create ") &&
-      !cleanPrompt.toLowerCase().startsWith("generate ")
-    ) {
-      campaignTitle = cleanPrompt;
+    if (!hasExplicitTitle) {
+      const cleanPrompt = prompt.trim();
+      if (
+        cleanPrompt.length < 100 &&
+        !cleanPrompt.includes("\n") &&
+        !cleanPrompt.includes(".") &&
+        !cleanPrompt.toLowerCase().startsWith("create ") &&
+        !cleanPrompt.toLowerCase().startsWith("generate ")
+      ) {
+        campaignTitle = cleanPrompt;
+      }
+
+      // Explicitly clean instructions leakage from title if it was not explicitly quoted
+      if (campaignTitle.includes(",")) {
+        campaignTitle = campaignTitle.split(",")[0].trim();
+      }
+      if (campaignTitle.toLowerCase().includes("questions")) {
+        const parts = campaignTitle.split(/\d+\s*questions/i);
+        campaignTitle = parts[0].trim();
+      }
+      campaignTitle = campaignTitle.replace(/[\-\:\,\s]+$/, "").trim();
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -493,17 +616,28 @@ app.post("/api/campaigns", async (req, res) => {
       try {
         const ai = getGeminiClient();
         console.log(`Querying Gemini to generate feedback form for topic: "${prompt}"`);
+        const contents = buildGeminiPrompt(prompt);
 
         const response = await ai.models.generateContent({
           model: "gemini-3.5-flash",
-          contents: `Create feedback questions and title for the topic: "${prompt}"`,
+          contents: contents,
           config: {
             systemInstruction:
-              "You are an API that generates course evaluation campaigns. The user will provide a topic or prompt.\n" +
-              "Generate a professional JSON object with two fields:\n" +
-              "1. 'title': A clean, concise, elegant campaign/course title. CRITICAL RULE: If the user's prompt contains or specifies a title (e.g. in quotes or as a clear title like 'Advanced Technical Training & Mentorship Feedback Survey'), you MUST use that exact title string without modifying, shortening, or altering it.\n" +
-              "2. 'questions': A valid JSON array of rating question strings. Focus on standard quantitative metrics. CRITICAL RULE: If the user's prompt requests a specific number of questions (e.g., exactly 10 rating questions) or lists specific dimensions, you MUST generate exactly that requested number of questions (up to 15) addressing those specific items and dimensions. Otherwise, generate a list of 4 to 8 high-quality questions.\n" +
-              "Return ONLY the valid JSON object. No markdown syntax, no extra commentary.",
+              "You are an API that generates course evaluation campaigns.\n" +
+              "You must return a valid JSON object only. No markdown formatting, no code blocks (like \`\`\`json), no other text.\n" +
+              "Output JSON Structure:\n" +
+              "{\n" +
+              "  \"title\": \"Campaign Title\",\n" +
+              "  \"questions\": [\"Question 1\", \"Question 2\"]\n" +
+              "}\n" +
+              "Rules for questions:\n" +
+              "- Must be generated STRICTLY based on the admin's prompt description.\n" +
+              "- Do NOT use the admin's prompt description or instructions text itself as a question.\n" +
+              "- Must be specific to the batch/course name mentioned (e.g. 'IoT Batch').\n" +
+              "- Distributed proportionally across these 4 categories: Faculty & Teaching Quality, Infrastructure & Facilities, Course Content & Curriculum, and Placement & Career Support.\n" +
+              "- If the prompt specifies a specific number of questions on a topic, follow that instruction EXACTLY.\n" +
+              "- All questions must be rateable on a 1 to 5 scale.\n" +
+              "- Minimum 4, maximum 15 questions.",
             responseMimeType: "application/json",
             responseSchema: {
               type: Type.OBJECT,
@@ -519,7 +653,16 @@ app.post("/api/campaigns", async (req, res) => {
           },
         });
 
-        const text = response.text?.trim() || "{}";
+        let text = response.text?.trim() || "{}";
+        // Strip markdown code fences (```json or ```) before JSON.parse()
+        text = text.replace(/^```(json)?\s*/i, "").replace(/\s*```$/, "").trim();
+        if (text.includes("```")) {
+          const match = text.match(/```(?:json)?([\s\S]+?)```/);
+          if (match && match[1]) {
+            text = match[1].trim();
+          }
+        }
+
         let parsedData: { title?: string; questions?: string[] } = {};
         try {
           parsedData = JSON.parse(text);
@@ -567,41 +710,133 @@ app.post("/api/campaigns", async (req, res) => {
       if (numberedItems.length >= 3) {
         questions = numberedItems;
       } else {
-        const lowerTopic = prompt.toLowerCase();
+        // Parse topic and counts for custom fallback
+        let totalQuestionsCount = 0;
+        const totalMatch = prompt.match(/(\d+)\s*questions/i);
+        if (totalMatch) totalQuestionsCount = parseInt(totalMatch[1], 10);
 
-        if (lowerTopic.includes("course") || lowerTopic.includes("class") || lowerTopic.includes("training") || lowerTopic.includes("workshop") || lowerTopic.includes("seminar")) {
-          questions = [
-            `How would you rate the overall structure of the ${campaignTitle}?`,
-            "How clear and understandable were the instructor's explanations?",
-            "Rate the relevance and helpfulness of the hands-on exercises or assignments.",
-            "How satisfied are you with the pacing and schedule of the sessions?",
-            "How well did this program meet your expectations?"
-          ];
-        } else if (lowerTopic.includes("product") || lowerTopic.includes("app") || lowerTopic.includes("software") || lowerTopic.includes("tool")) {
-          questions = [
-            `How would you rate the ease of use and user interface of ${campaignTitle}?`,
-            "How satisfied are you with the features and capabilities provided?",
-            "How would you rate the performance, speed, and reliability?",
-            "Rate the helpfulness of the documentation, onboarding, or customer support.",
-            "How likely are you to recommend this product to a colleague?"
-          ];
-        } else if (lowerTopic.includes("event") || lowerTopic.includes("conference") || lowerTopic.includes("meetup")) {
-          questions = [
-            `How would you rate the quality of the speakers and sessions at ${campaignTitle}?`,
-            "How satisfied were you with the venue, logistics, or platform used?",
-            "Rate the networking opportunities and interaction with other attendees.",
-            "How would you rate the overall value and learning from the event?",
-            "How likely are you to attend our future events?"
-          ];
+        let facultyCount = 0;
+        let infraCount = 0;
+        let contentCount = 0;
+        let placementCount = 0;
+
+        const facultyMatch = prompt.match(/(\d+)\s*on\s*(faculty|teaching)/i);
+        if (facultyMatch) facultyCount = parseInt(facultyMatch[1], 10);
+
+        const infraMatch = prompt.match(/(\d+)\s*on\s*(infra|facility|facilities)/i);
+        if (infraMatch) infraCount = parseInt(infraMatch[1], 10);
+
+        const contentMatch = prompt.match(/(\d+)\s*on\s*(course|content|curriculum)/i);
+        if (contentMatch) contentCount = parseInt(contentMatch[1], 10);
+
+        const placementMatch = prompt.match(/(\d+)\s*on\s*(placement|career)/i);
+        if (placementMatch) placementCount = parseInt(placementMatch[1], 10);
+
+        let extractedTopic = "";
+        const iotMatch = prompt.match(/iot/i);
+        if (iotMatch) {
+          extractedTopic = "IoT";
         } else {
-          questions = [
-            `How satisfied are you with the overall quality and experience of ${campaignTitle}?`,
-            "How clear was the communication and guidance provided?",
-            "Rate the responsiveness and support of the coordinators/instructors.",
-            "How relevant was this content to your professional or personal needs?",
-            "Would you recommend this program or activity to others?"
-          ];
+          let baseTitle = campaignTitle;
+          
+          // Split by known markers to truncate long title
+          const markerRegex = /(?:bootcamp|batch|2025|—|-)/i;
+          const markerMatch = baseTitle.match(markerRegex);
+          if (markerMatch && markerMatch.index !== undefined) {
+            baseTitle = baseTitle.slice(0, markerMatch.index).trim();
+          }
+
+          // If the title contains '&' or 'and', and also contains 'web' or 'dev', drop the 'web dev' part
+          if (baseTitle.toLowerCase().includes("&") || baseTitle.toLowerCase().includes(" and ")) {
+            const webMatch = baseTitle.match(/(?:\s+web|\s+dev)/i);
+            if (webMatch && webMatch.index !== undefined) {
+              baseTitle = baseTitle.slice(0, webMatch.index).trim();
+            }
+          }
+
+          // Capitalize "Artificial Intelligence & Machine Learning" to "AI & Machine Learning"
+          baseTitle = baseTitle.replace(/artificial\s+intelligence/i, "AI");
+          baseTitle = baseTitle.replace(/advanced\s+/i, ""); // Remove "Advanced" to make it shorter
+
+          // Extract first 3-4 meaningful words
+          const words = baseTitle.split(/\s+/).filter(Boolean);
+          if (words.length > 4) {
+            if (words[3].toLowerCase() === "and" || words[3] === "&") {
+              baseTitle = words.slice(0, 5).join(" ");
+            } else {
+              baseTitle = words.slice(0, 4).join(" ");
+            }
+          } else {
+            baseTitle = words.join(" ");
+          }
+
+          extractedTopic = baseTitle.trim();
         }
+
+        const t = extractedTopic || "Course";
+        const isIoT = t.toLowerCase().includes("iot");
+        const topicWord = isIoT ? "IoT and embedded systems" : t;
+
+        // Custom template questions per category
+        const templates = {
+          faculty: [
+            `How would you rate the faculty's teaching quality and session delivery in ${topicWord}?`,
+            `Rate the instructor's ability to clarify practical doubts during the ${t} sessions.`,
+            `How interactive and engaging were the lecturing sessions for ${t}?`,
+            `How responsive was the mentor to student queries regarding ${t} modules?`
+          ],
+          infrastructure: [
+            `How would you rate the laboratory infrastructure and hardware availability for ${t}?`,
+            `Rate the quality and speed of internet connectivity in the ${t} labs.`,
+            `How satisfied are you with the comfort and cleanliness of the ${t} classroom?`,
+            `Rate the access to reference resources and computing facilities for ${t}.`
+          ],
+          content: [
+            `How relevant is the ${t} course content to real-world industrial projects?`,
+            `Rate the quality of course material, syllabus structure, and notes provided for ${t}.`,
+            `How satisfied are you with the hands-on practical exercises designed for ${t}?`,
+            `Rate the pacing and sequence of training modules in this ${t} curriculum.`
+          ],
+          placement: [
+            `How would you rate the placement support and career guidance provided for the ${t} batch?`,
+            `Rate the frequency and standard of company placement drives for ${t} candidates.`,
+            `How helpful were mock interviews and resume preparation sessions for ${t}?`,
+            `Rate the overall readiness and industry alignment you acquired through this ${t} program.`
+          ]
+        };
+
+        const fallbackList: string[] = [];
+
+        // Build list based on parsed counts or proportional defaults
+        if (facultyCount > 0 || infraCount > 0 || contentCount > 0 || placementCount > 0) {
+          for (let i = 0; i < facultyCount; i++) fallbackList.push(templates.faculty[i % templates.faculty.length]);
+          for (let i = 0; i < infraCount; i++) fallbackList.push(templates.infrastructure[i % templates.infrastructure.length]);
+          for (let i = 0; i < contentCount; i++) fallbackList.push(templates.content[i % templates.content.length]);
+          for (let i = 0; i < placementCount; i++) fallbackList.push(templates.placement[i % templates.placement.length]);
+        } else {
+          // Proportionate distribution if no category counts specified
+          const target = totalQuestionsCount > 0 ? totalQuestionsCount : 5;
+          const categories = ["faculty", "infrastructure", "content", "placement"];
+          for (let i = 0; i < target; i++) {
+            const cat = categories[i % categories.length] as keyof typeof templates;
+            const index = Math.floor(i / categories.length);
+            fallbackList.push(templates[cat][index % templates[cat].length]);
+          }
+        }
+
+        if (totalQuestionsCount > 0 && fallbackList.length < totalQuestionsCount) {
+          const all = [...templates.faculty, ...templates.infrastructure, ...templates.content, ...templates.placement];
+          let index = 0;
+          while (fallbackList.length < totalQuestionsCount) {
+            const q = all[index % all.length];
+            if (!fallbackList.includes(q)) {
+              fallbackList.push(q);
+            }
+            index++;
+          }
+        }
+
+        questions = totalQuestionsCount > 0 ? fallbackList.slice(0, totalQuestionsCount) : fallbackList;
       }
     }
 
@@ -622,9 +857,32 @@ app.post("/api/campaigns", async (req, res) => {
       questions.push("Would you recommend this course module to future batches?");
     }
 
+    // Format title cleanly
+    campaignTitle = campaignTitle.replace(/[\-\:\,\s]+$/, "").trim();
+    campaignTitle = campaignTitle
+      .split(/(\s+|\-+)/)
+      .map(part => {
+        if (!part) return "";
+        if (/^[\s\-]+$/.test(part)) return part;
+        if (part.toLowerCase() === "iot") return "IoT";
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .filter(Boolean)
+      .join("");
+
+    if (!campaignTitle.toLowerCase().endsWith("feedback form")) {
+      campaignTitle += " Feedback Form";
+    }
+
     // Save to database
     const created = await createCampaignStore(campaignTitle, questions);
-    res.status(201).json(created);
+    res.status(201).json({
+      id: created.id,
+      title: created.title,
+      questions: created.form_schema,
+      form_schema: created.form_schema,
+      created_at: created.created_at
+    });
   } catch (e: any) {
     console.error("Gemini Form Generation failed:", e);
     res.status(500).json({

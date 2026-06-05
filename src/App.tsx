@@ -9,13 +9,15 @@ import {
   Compass,
   Zap,
   Lock,
-  User
+  User,
+  BookOpen
 } from "lucide-react";
 import { Campaign, FeedbackResponse } from "./types";
 import { CampaignCreator } from "./components/CampaignCreator";
 import { CampaignList } from "./components/CampaignList";
 import { CampaignReport } from "./components/CampaignReport";
 import { FeedbackForm } from "./components/FeedbackForm";
+import { DocsPage } from "./components/DocsPage";
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
   const [username, setUsername] = useState("");
@@ -226,7 +228,16 @@ export default function App() {
               />
             </button>
 
-            <nav className="flex items-center gap-2">
+            <nav className="flex items-center gap-2.5">
+              <button
+                onClick={() => navigate("/docs")}
+                className={`py-1.5 px-3.5 rounded-xl text-[10px] font-bold font-mono tracking-wider uppercase border transition duration-155 cursor-pointer ${currentPath === "/docs"
+                    ? "bg-primary text-white border-primary shadow-sm"
+                    : "bg-white text-neutral-750 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
+                  }`}
+              >
+                Documentation
+              </button>
               <button
                 onClick={() => navigate("/admin")}
                 className={`py-1.5 px-3.5 rounded-xl text-[10px] font-bold font-mono tracking-wider uppercase border transition duration-155 cursor-pointer ${currentPath.startsWith("/admin")
@@ -391,6 +402,11 @@ export default function App() {
           </div>
         )}
 
+        {/* VIEW 5: SYSTEM DOCUMENTATION PAGE */}
+        {currentPath === "/docs" && (
+          <DocsPage onNavigate={navigate} />
+        )}
+
       </main>
 
       {/* Universal Branded Footer - Hidden completely in student portal view to reduce clutter */}
@@ -399,15 +415,29 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
             <p>© 2026 simplesphere feedback engine. All student responses 100% anonymized.</p>
             <div className="flex gap-4">
-              <span className="cursor-help flex items-center gap-1 hover:text-neutral-600 transition duration-150">
+              <button
+                onClick={() => navigate("/")}
+                className="cursor-pointer flex items-center gap-1 hover:text-neutral-600 transition duration-150"
+              >
                 <Vote className="w-3.5 h-3.5 text-neutral-300" />
-                <span>Anon Vote Protocol</span>
-              </span>
+                <span>Home Portal</span>
+              </button>
               <span>•</span>
-              <span className="cursor-help flex items-center gap-1 hover:text-neutral-600 transition duration-150">
+              <button
+                onClick={() => navigate("/docs")}
+                className="cursor-pointer flex items-center gap-1 hover:text-neutral-600 transition duration-150"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-neutral-300" />
+                <span>Documentation</span>
+              </button>
+              <span>•</span>
+              <button
+                onClick={() => navigate("/admin")}
+                className="cursor-pointer flex items-center gap-1 hover:text-neutral-600 transition duration-150"
+              >
                 <Compass className="w-3.5 h-3.5 text-neutral-300" />
                 <span>Admin Center</span>
-              </span>
+              </button>
             </div>
           </div>
         </footer>

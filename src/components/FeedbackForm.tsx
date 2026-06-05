@@ -101,7 +101,7 @@ export function FeedbackForm({ campaign, onSubmit }: FeedbackFormProps) {
           <span className="w-2 h-2 bg-teal-600 rounded-full animate-pulse"></span>
           ANONYMOUS RESPONDENT PORTAL
         </div>
-        <h1 className="text-4xl font-black text-neutral-900 tracking-tight leading-tight">
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-neutral-900 tracking-tight leading-tight break-words">
           {campaign.title}
         </h1>
         <p className="text-neutral-500 text-sm sm:text-base leading-relaxed">
