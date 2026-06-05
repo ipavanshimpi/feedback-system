@@ -14,7 +14,6 @@ import {
 import { Campaign, FeedbackResponse } from "./types";
 import { CampaignCreator } from "./components/CampaignCreator";
 import { CampaignList } from "./components/CampaignList";
-import { SqlSchemaCard } from "./components/SqlSchemaCard";
 import { CampaignReport } from "./components/CampaignReport";
 import { FeedbackForm } from "./components/FeedbackForm";
 
@@ -220,11 +219,11 @@ export default function App() {
               onClick={() => navigate("/")}
               className="flex items-center gap-2.5 text-left group hover:opacity-95 transition cursor-pointer"
             >
-              <div>
-                <span className="font-black text-neutral-950 tracking-tight text-2xl uppercase transition duration-155">
-                  <span className="text-primary">simplesphere</span>
-                </span>
-              </div>
+              <img
+                src="/image.png"
+                alt="simplesphere"
+                className="h-12 w-auto object-contain"
+              />
             </button>
 
             <nav className="flex items-center gap-2">
@@ -352,7 +351,6 @@ export default function App() {
                 {/* Lists and Database Info */}
                 <div className="lg:col-span-7 space-y-8">
                   <CampaignList campaigns={campaigns} onSelect={(id) => navigate(`/admin/${id}`)} />
-                  <SqlSchemaCard />
                 </div>
 
               </div>
