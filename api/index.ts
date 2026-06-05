@@ -67,6 +67,153 @@ interface DatabaseSchema {
 
 let memoryDb: DatabaseSchema | null = null;
 
+const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, "");
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const hasSupabaseConfig = Boolean(SUPABASE_URL && SUPABASE_KEY);
+
+async function supabaseRequest<T>(pathAndQuery: string, init: RequestInit = {}): Promise<T> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Supabase request failed with status ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function getCampaignsStore(): Promise<Campaign[]> {
+  if (!hasSupabaseConfig) {
+    return getCampaigns();
+  }
+
+  return supabaseRequest<Campaign[]>("campaigns?select=*&order=created_at.desc");
+}
+
+async function getCampaignByIdStore(id: string): Promise<Campaign | undefined> {
+  if (!hasSupabaseConfig) {
+    return getCampaignById(id);
+  }
+
+  const rows = await supabaseRequest<Campaign[]>(`campaigns?select=*&id=eq.${encodeURIComponent(id)}&limit=1`);
+  return rows[0] || getCampaignById(id);
+}
+
+async function createCampaignStore(title: string, form_schema: string[]): Promise<Campaign> {
+  if (!hasSupabaseConfig) {
+    return createCampaign(title, form_schema);
+  }
+
+  const rows = await supabaseRequest<Campaign[]>("campaigns", {
+    method: "POST",
+    headers: {
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ title, form_schema }),
+  });
+
+  if (!rows[0]) {
+    throw new Error("Supabase did not return the created campaign.");
+  }
+
+  return rows[0];
+}
+
+async function updateCampaignStore(id: string, title: string, form_schema: string[]): Promise<Campaign | undefined> {
+  if (!hasSupabaseConfig) {
+    return updateCampaign(id, title, form_schema);
+  }
+
+  const rows = await supabaseRequest<Campaign[]>(`campaigns?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: {
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ title, form_schema }),
+  });
+
+  return rows[0];
+}
+
+async function getResponsesByCampaignIdStore(campaignId: string): Promise<FeedbackResponse[]> {
+  if (!hasSupabaseConfig) {
+    return getResponsesByCampaignId(campaignId);
+  }
+
+  return supabaseRequest<FeedbackResponse[]>(
+    `responses?select=*&campaign_id=eq.${encodeURIComponent(campaignId)}&order=created_at.desc`
+  );
+}
+
+async function ensureSupabaseCampaign(campaign: Campaign): Promise<void> {
+  if (!hasSupabaseConfig) {
+    return;
+  }
+
+  const existing = await supabaseRequest<Campaign[]>(
+    `campaigns?select=id&id=eq.${encodeURIComponent(campaign.id)}&limit=1`
+  );
+
+  if (existing[0]) {
+    return;
+  }
+
+  await supabaseRequest<Campaign[]>("campaigns", {
+    method: "POST",
+    headers: {
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      id: campaign.id,
+      title: campaign.title,
+      form_schema: campaign.form_schema,
+      created_at: campaign.created_at,
+    }),
+  });
+}
+
+async function createResponseStore(campaign: Campaign, ratings: Record<string, number>, suggestionText: string | null): Promise<FeedbackResponse> {
+  if (!hasSupabaseConfig) {
+    return createResponse(campaign.id, ratings, suggestionText);
+  }
+
+  await ensureSupabaseCampaign(campaign);
+
+  const rows = await supabaseRequest<FeedbackResponse[]>("responses", {
+    method: "POST",
+    headers: {
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      campaign_id: campaign.id,
+      ratings,
+      suggestion_text: suggestionText || null,
+    }),
+  });
+
+  if (!rows[0]) {
+    throw new Error("Supabase did not return the created feedback response.");
+  }
+
+  return rows[0];
+}
+
 function setupMemoryDbFallback() {
   if (!memoryDb) {
     memoryDb = {
@@ -225,6 +372,19 @@ export function createCampaign(title: string, form_schema: string[]): Campaign {
   return newCampaign;
 }
 
+export function updateCampaign(id: string, title: string, form_schema: string[]): Campaign | undefined {
+  const db = readDb();
+  const campaign = db.campaigns.find(c => c.id === id);
+  if (!campaign) {
+    return undefined;
+  }
+
+  campaign.title = title;
+  campaign.form_schema = form_schema;
+  writeDb(db);
+  return campaign;
+}
+
 export function getResponsesByCampaignId(campaignId: string): FeedbackResponse[] {
   const db = readDb();
   return db.responses.filter(r => r.campaign_id === campaignId);
@@ -268,9 +428,9 @@ const app = express();
 app.use(express.json());
 
 // API - Get all campaigns
-app.get("/api/campaigns", (req, res) => {
+app.get("/api/campaigns", async (req, res) => {
   try {
-    const list = getCampaigns();
+    const list = await getCampaignsStore();
     res.json(list);
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to load campaigns list" });
@@ -278,10 +438,10 @@ app.get("/api/campaigns", (req, res) => {
 });
 
 // API - Get single campaign
-app.get("/api/campaigns/:id", (req, res) => {
+app.get("/api/campaigns/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const campaign = getCampaignById(id);
+    const campaign = await getCampaignByIdStore(id);
     if (!campaign) {
       return res.status(404).json({ error: "Campaign not found" });
     }
@@ -328,47 +488,61 @@ app.post("/api/campaigns", async (req, res) => {
     const apiKey = process.env.GEMINI_API_KEY;
     const hasApiKey = apiKey && apiKey !== "MY_GEMINI_API_KEY" && apiKey.trim() !== "";
 
+    let isGeminiSuccess = false;
     if (hasApiKey) {
-      const ai = getGeminiClient();
-      console.log(`Querying Gemini to generate feedback form for topic: "${prompt}"`);
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: `Create feedback questions and title for the topic: "${prompt}"`,
-        config: {
-          systemInstruction:
-            "You are an API that generates course evaluation campaigns. The user will provide a topic or prompt.\n" +
-            "Generate a professional JSON object with two fields:\n" +
-            "1. 'title': A clean, concise, elegant campaign/course title. CRITICAL RULE: If the user's prompt contains or specifies a title (e.g. in quotes or as a clear title like 'Advanced Technical Training & Mentorship Feedback Survey'), you MUST use that exact title string without modifying, shortening, or altering it.\n" +
-            "2. 'questions': A valid JSON array of rating question strings. Focus on standard quantitative metrics. CRITICAL RULE: If the user's prompt requests a specific number of questions (e.g., exactly 10 rating questions) or lists specific dimensions, you MUST generate exactly that requested number of questions (up to 15) addressing those specific items and dimensions. Otherwise, generate a list of 4 to 8 high-quality questions.\n" +
-            "Return ONLY the valid JSON object. No markdown syntax, no extra commentary.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              questions: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              }
-            },
-            required: ["title", "questions"]
-          },
-        },
-      });
-
-      const text = response.text?.trim() || "{}";
-      let parsedData: { title?: string; questions?: string[] } = {};
       try {
-        parsedData = JSON.parse(text);
-      } catch (parseError) {
-        console.error("Failed to parse Gemini output:", text, parseError);
-      }
+        const ai = getGeminiClient();
+        console.log(`Querying Gemini to generate feedback form for topic: "${prompt}"`);
 
-      campaignTitle = parsedData.title?.trim() || campaignTitle;
-      questions = parsedData.questions || [];
-    } else {
-      console.log("No valid GEMINI_API_KEY configured. Falling back to local template questions generator.");
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: `Create feedback questions and title for the topic: "${prompt}"`,
+          config: {
+            systemInstruction:
+              "You are an API that generates course evaluation campaigns. The user will provide a topic or prompt.\n" +
+              "Generate a professional JSON object with two fields:\n" +
+              "1. 'title': A clean, concise, elegant campaign/course title. CRITICAL RULE: If the user's prompt contains or specifies a title (e.g. in quotes or as a clear title like 'Advanced Technical Training & Mentorship Feedback Survey'), you MUST use that exact title string without modifying, shortening, or altering it.\n" +
+              "2. 'questions': A valid JSON array of rating question strings. Focus on standard quantitative metrics. CRITICAL RULE: If the user's prompt requests a specific number of questions (e.g., exactly 10 rating questions) or lists specific dimensions, you MUST generate exactly that requested number of questions (up to 15) addressing those specific items and dimensions. Otherwise, generate a list of 4 to 8 high-quality questions.\n" +
+              "Return ONLY the valid JSON object. No markdown syntax, no extra commentary.",
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                questions: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                }
+              },
+              required: ["title", "questions"]
+            },
+          },
+        });
+
+        const text = response.text?.trim() || "{}";
+        let parsedData: { title?: string; questions?: string[] } = {};
+        try {
+          parsedData = JSON.parse(text);
+        } catch (parseError) {
+          console.error("Failed to parse Gemini output:", text, parseError);
+        }
+
+        campaignTitle = parsedData.title?.trim() || campaignTitle;
+        questions = parsedData.questions || [];
+        if (questions && questions.length > 0) {
+          isGeminiSuccess = true;
+        }
+      } catch (geminiError: any) {
+        console.error("Gemini Form Generation API call failed. Falling back to local template questions generator. Error details:", geminiError);
+      }
+    }
+
+    if (!isGeminiSuccess) {
+      if (hasApiKey) {
+        console.log("Gemini API call failed or returned empty questions. Falling back to local template questions generator.");
+      } else {
+        console.log("No valid GEMINI_API_KEY configured. Falling back to local template questions generator.");
+      }
 
       // Try to parse numbered questions/dimensions from the prompt (if any)
       const lines = prompt.split('\n');
@@ -449,7 +623,7 @@ app.post("/api/campaigns", async (req, res) => {
     }
 
     // Save to database
-    const created = createCampaign(campaignTitle, questions);
+    const created = await createCampaignStore(campaignTitle, questions);
     res.status(201).json(created);
   } catch (e: any) {
     console.error("Gemini Form Generation failed:", e);
@@ -459,16 +633,50 @@ app.post("/api/campaigns", async (req, res) => {
   }
 });
 
+// API - Update campaign feedback form
+app.put("/api/campaigns/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, form_schema } = req.body;
+
+  try {
+    if (!title || typeof title !== "string" || title.trim() === "") {
+      return res.status(400).json({ error: "Please enter a valid feedback form title." });
+    }
+
+    if (!Array.isArray(form_schema)) {
+      return res.status(400).json({ error: "Feedback form questions must be provided as a list." });
+    }
+
+    const cleanQuestions = form_schema
+      .map((question) => typeof question === "string" ? question.trim() : "")
+      .filter(Boolean)
+      .slice(0, 15);
+
+    if (cleanQuestions.length === 0) {
+      return res.status(400).json({ error: "Please keep at least one feedback question." });
+    }
+
+    const updated = await updateCampaignStore(id, title.trim(), cleanQuestions);
+    if (!updated) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    res.json(updated);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || "Failed to update feedback form" });
+  }
+});
+
 // API - Get analytics for a campaign
-app.get("/api/campaigns/:id/analytics", (req, res) => {
+app.get("/api/campaigns/:id/analytics", async (req, res) => {
   const { id } = req.params;
   try {
-    const campaign = getCampaignById(id);
+    const campaign = await getCampaignByIdStore(id);
     if (!campaign) {
       return res.status(404).json({ error: "Campaign not found" });
     }
 
-    const responses = getResponsesByCampaignId(id);
+    const responses = await getResponsesByCampaignIdStore(id);
     const totalResponses = responses.length;
 
     // Map questions to computes
@@ -522,12 +730,12 @@ app.get("/api/campaigns/:id/analytics", (req, res) => {
 });
 
 // API - Post student response feedback
-app.post("/api/campaigns/:id/responses", (req, res) => {
+app.post("/api/campaigns/:id/responses", async (req, res) => {
   const { id } = req.params;
   const { ratings, suggestion_text } = req.body;
 
   try {
-    const campaign = getCampaignById(id);
+    const campaign = await getCampaignByIdStore(id);
     if (!campaign) {
       return res.status(404).json({ error: "Campaign not found" });
     }
@@ -548,7 +756,7 @@ app.post("/api/campaigns/:id/responses", (req, res) => {
       }
     });
 
-    const responseRecord = createResponse(id, cleanRatings, suggestion_text);
+    const responseRecord = await createResponseStore(campaign, cleanRatings, suggestion_text);
     res.status(201).json({ success: true, response: responseRecord });
   } catch (e: any) {
     res.status(500).json({ error: e.message || "Failed to submit anonymous feedback response" });

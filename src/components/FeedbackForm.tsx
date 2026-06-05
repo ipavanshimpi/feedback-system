@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { Star, MessageSquareCode, CheckCircle, ArrowRight, Shield } from "lucide-react";
 import { motion } from "motion/react";
-import { Campaign } from "../types";
+import { Campaign, FeedbackResponse } from "../types";
 
 interface FeedbackFormProps {
   campaign: Campaign;
-  onSubmit: (ratings: Record<string, number>, comment: string) => Promise<boolean>;
+  onSubmit: (ratings: Record<string, number>, comment: string) => Promise<FeedbackResponse | null>;
 }
 
 export function FeedbackForm({ campaign, onSubmit }: FeedbackFormProps) {
@@ -52,8 +52,8 @@ export function FeedbackForm({ campaign, onSubmit }: FeedbackFormProps) {
     setError(null);
 
     try {
-      const success = await onSubmit(ratings, comment);
-      if (success) {
+      const response = await onSubmit(ratings, comment);
+      if (response) {
         setSubmitted(true);
       } else {
         setError("Failed to record your feedback. Please try again.");
@@ -81,13 +81,13 @@ export function FeedbackForm({ campaign, onSubmit }: FeedbackFormProps) {
           <h2 className="text-2xl font-bold text-neutral-900 tracking-tight leading-tight mb-3">
             Evaluation Received
           </h2>
-          <p className="text-neutral-500 max-w-sm mb-8 text-xs leading-relaxed">
-            Your metrics have been safely compiled into the course dataset. All inputs are completely decoupled from your identity. Thank you for supporting tech training excellence.
+          <p className="text-neutral-500 max-w-sm mb-6 text-xs leading-relaxed">
+            Your metrics have been safely stored in the course dataset. All inputs are completely decoupled from your identity. Thank you for supporting tech training excellence.
           </p>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-50 border border-neutral-200 text-neutral-400 text-[10px] font-mono">
             <Shield className="w-3.5 h-3.5 text-teal-600" />
-            <span>ENCRYPTED & ANON</span>
+            <span>STORED & ANON</span>
           </div>
         </div>
       </div>

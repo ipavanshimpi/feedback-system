@@ -11,7 +11,7 @@ import {
   Lock,
   User
 } from "lucide-react";
-import { Campaign } from "./types";
+import { Campaign, FeedbackResponse } from "./types";
 import { CampaignCreator } from "./components/CampaignCreator";
 import { CampaignList } from "./components/CampaignList";
 import { SqlSchemaCard } from "./components/SqlSchemaCard";
@@ -180,8 +180,8 @@ export default function App() {
   }, [currentPath, isStudentRoute, studentFormId]);
 
   // Handle students submitting form payload
-  const handleStudentSubmit = async (ratings: Record<string, number>, suggestion: string): Promise<boolean> => {
-    if (!studentFormId) return false;
+  const handleStudentSubmit = async (ratings: Record<string, number>, suggestion: string): Promise<FeedbackResponse | null> => {
+    if (!studentFormId) return null;
     try {
       const res = await fetch(`/api/campaigns/${studentFormId}/responses`, {
         method: "POST",
@@ -193,10 +193,15 @@ export default function App() {
           suggestion_text: suggestion,
         }),
       });
-      return res.ok;
+      if (!res.ok) {
+        return null;
+      }
+
+      const data = await res.json();
+      return data.response || null;
     } catch (err) {
       console.error("Submission error", err);
-      return false;
+      return null;
     }
   };
 

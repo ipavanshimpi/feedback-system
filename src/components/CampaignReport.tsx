@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import {
   BarChart,
@@ -17,12 +16,16 @@ import {
 import {
   ArrowLeft,
   Calendar,
-  Share2,
   Copy,
   Check,
   FileDown,
+  Pencil,
+  Plus,
   MessageSquareCode,
+  Save,
+  Trash2,
   Users,
+  X,
   LineChart,
   Shield,
   Activity
@@ -40,10 +43,13 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
   const [error, setError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [editingForm, setEditingForm] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editQuestions, setEditQuestions] = useState<string[]>([]);
+  const [savingForm, setSavingForm] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
-  const origin = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1")
-    ? "https://feedback-system-silk-nine.vercel.app"
-    : window.location.origin;
+  const origin = import.meta.env.VITE_APP_URL || window.location.origin;
   const studentFormUrl = `${origin}/f/${id}`;
 
   const fetchAnalytics = async () => {
@@ -75,6 +81,75 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy", err);
+    }
+  };
+
+  const startFormEdit = () => {
+    if (!data) return;
+    setEditTitle(data.campaign.title);
+    setEditQuestions([...data.campaign.form_schema]);
+    setEditError(null);
+    setEditingForm(true);
+  };
+
+  const cancelFormEdit = () => {
+    setEditingForm(false);
+    setEditError(null);
+  };
+
+  const updateQuestionDraft = (index: number, value: string) => {
+    setEditQuestions((questions) => questions.map((question, qIdx) => qIdx === index ? value : question));
+  };
+
+  const addQuestionDraft = () => {
+    setEditQuestions((questions) => questions.length >= 15 ? questions : [...questions, ""]);
+  };
+
+  const removeQuestionDraft = (index: number) => {
+    setEditQuestions((questions) => questions.length <= 1 ? questions : questions.filter((_, qIdx) => qIdx !== index));
+  };
+
+  const saveFormEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const cleanTitle = editTitle.trim();
+    const cleanQuestions = editQuestions.map((question) => question.trim()).filter(Boolean);
+
+    if (!cleanTitle) {
+      setEditError("Please enter a feedback form title.");
+      return;
+    }
+
+    if (cleanQuestions.length === 0) {
+      setEditError("Please keep at least one feedback question.");
+      return;
+    }
+
+    try {
+      setSavingForm(true);
+      setEditError(null);
+      const response = await fetch(`/api/campaigns/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: cleanTitle,
+          form_schema: cleanQuestions,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to update feedback form.");
+      }
+
+      await fetchAnalytics();
+      setEditingForm(false);
+    } catch (err: any) {
+      setEditError(err.message || "Failed to update feedback form.");
+    } finally {
+      setSavingForm(false);
     }
   };
 
@@ -133,8 +208,32 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
     { name: "1★ Poor", value: combinedDistribution[1], color: "#94a3b8" }, // Light silver slate
   ].filter(item => item.value > 0);
 
-  const generateDirectVectorPdf = () => {
+  const loadImageDataUrl = (src: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("Unable to prepare logo image for PDF."));
+          return;
+        }
+        context.drawImage(image, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      image.onerror = () => reject(new Error("Unable to load logo image."));
+      image.src = src;
+    });
+  };
+
+  const generateDirectVectorPdf = async () => {
     const pdf = new jsPDF("p", "mm", "a4");
+    const logoDataUrl = await loadImageDataUrl("/simplesphere-logo.png").catch((err) => {
+      console.warn("Logo image could not be loaded for PDF letterhead. Using vector fallback.", err);
+      return null;
+    });
 
     // Set meta details
     pdf.setProperties({
@@ -144,7 +243,50 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
       creator: 'simplesphere'
     });
 
-    let currentY = 25;
+    const drawLetterhead = () => {
+      if (logoDataUrl) {
+        pdf.addImage(logoDataUrl, "PNG", 30, 8, 47, 34);
+      } else {
+        pdf.setFillColor(42, 152, 206);
+        pdf.circle(43, 20, 7, "F");
+        pdf.setFillColor(62, 174, 218);
+        pdf.circle(53, 25, 7, "F");
+        pdf.setFillColor(255, 255, 255);
+        pdf.circle(43, 20, 4.5, "F");
+        pdf.circle(53, 25, 4.5, "F");
+        pdf.setDrawColor(42, 152, 206);
+        pdf.setLineWidth(1.6);
+        pdf.circle(43, 20, 7, "S");
+        pdf.setDrawColor(62, 174, 218);
+        pdf.circle(53, 25, 7, "S");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.setTextColor(42, 152, 206);
+        pdf.text("SIMPLESPHERE", 32, 42);
+        pdf.setFontSize(8);
+        pdf.setTextColor(42, 152, 206);
+        pdf.text("TECHNOLOGIES", 46, 47, { align: "center" });
+      }
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(17, 24, 39);
+      pdf.text("www.simplesphere.in", 96, 17);
+      pdf.text("Mobile no:- +91 9529044429  +91 9322051181", 96, 25);
+      pdf.text("Email:- contact@simplesphere.in", 96, 33);
+      pdf.setFont("helvetica", "normal");
+      pdf.text("Opp. of House of jewels, Ring Road, Jalgaon", 96, 41);
+      pdf.text("IIF, JSPM RSCOE, Tathawade, Pune", 96, 49);
+
+      pdf.setDrawColor(17, 24, 39);
+      pdf.setLineWidth(0.9);
+      pdf.line(33, 55, 178, 55);
+      pdf.line(33, 53.8, 33, 56.2);
+      pdf.line(178, 53.8, 178, 56.2);
+    };
+
+    let currentY = 68;
 
     const checkPageBoundary = (neededHeight: number) => {
       if (currentY + neededHeight > 270) {
@@ -159,6 +301,8 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
         pdf.line(20, 17, 190, 17);
       }
     };
+
+    drawLetterhead();
 
     // Header - Zoomed in "simplesphere COURSE EVALUATION CO-PILOT" in electric blue
     pdf.setFont("helvetica", "bold");
@@ -383,49 +527,13 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
   };
 
   handleDownloadPdf = async () => {
-    const element = document.getElementById("analytics-report-view");
-    if (!element) return;
     setExporting(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      // First try standard html2canvas image representation
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      const fileSafeTitle = data?.campaign.title.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "report";
-      pdf.save(`simplesphere_Report_${fileSafeTitle}.pdf`);
+      await generateDirectVectorPdf();
     } catch (err: any) {
-      console.warn("HTML2Canvas PDF compilation bypassed/failed, executing robust native vector fallback PDF:", err);
-      // Execute the high-fidelity direct vector generator
-      try {
-        generateDirectVectorPdf();
-      } catch (vectorErr) {
-        console.error("Vector backup PDF generation failed:", vectorErr);
-        alert("Failed to export PDF. Please check your browser capabilities.");
-      }
+      console.error("Executive summary PDF generation failed:", err);
+      alert("Failed to export PDF. Please check your browser capabilities.");
     } finally {
       setExporting(false);
     }
@@ -445,6 +553,13 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={startFormEdit}
+            className="inline-flex items-center gap-2 py-2 px-4 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-xs font-semibold text-neutral-800 transition active:scale-[0.98] cursor-pointer font-mono text-[11px]"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            <span>EDIT FORM</span>
+          </button>
+          <button
             onClick={fetchAnalytics}
             className="py-2 px-4 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-xs font-semibold text-neutral-800 transition active:scale-[0.98] cursor-pointer font-mono text-[11px]"
           >
@@ -463,6 +578,116 @@ export function CampaignReport({ id, onBack }: CampaignReportProps) {
           </button>
         </div>
       </div>
+
+      {editingForm && (
+        <form onSubmit={saveFormEdit} className="ambient-card rounded-3xl p-6 sm:p-8 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-neutral-100 pb-4">
+            <div className="space-y-1">
+              <h3 className="text-base font-black text-neutral-900 tracking-tight">Edit Feedback Form</h3>
+              <p className="text-[10px] text-neutral-400 font-mono tracking-widest uppercase">
+                Update title and rating metrics
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={cancelFormEdit}
+              className="w-9 h-9 inline-flex items-center justify-center rounded-xl border border-neutral-200 hover:bg-neutral-50 text-neutral-500 transition cursor-pointer"
+              title="Close editor"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-neutral-450 font-mono tracking-wider uppercase">Form Title</label>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(event) => setEditTitle(event.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:border-teal-500 bg-neutral-50 focus:bg-white text-sm font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              placeholder="Feedback form title"
+              required
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-[10px] font-bold text-neutral-450 font-mono tracking-wider uppercase">Rating Questions</label>
+              <span className="text-[10px] text-neutral-400 font-mono">{editQuestions.length} / 15</span>
+            </div>
+
+            <div className="space-y-3">
+              {editQuestions.map((question, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <span className="mt-3 w-8 py-1 rounded bg-neutral-900 text-teal-400 text-[10px] font-bold font-mono text-center shrink-0">
+                    Q{index + 1}
+                  </span>
+                  <textarea
+                    value={question}
+                    onChange={(event) => updateQuestionDraft(index, event.target.value)}
+                    rows={2}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-200 focus:border-teal-500 bg-neutral-50 focus:bg-white text-sm font-medium text-neutral-800 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                    placeholder="Write a feedback rating question..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeQuestionDraft(index)}
+                    disabled={editQuestions.length <= 1}
+                    className={`mt-1 w-9 h-9 inline-flex items-center justify-center rounded-xl border transition ${
+                      editQuestions.length <= 1
+                        ? "border-neutral-150 text-neutral-250 cursor-not-allowed"
+                        : "border-neutral-200 text-neutral-500 hover:bg-red-50 hover:text-red-600 hover:border-red-100 cursor-pointer"
+                    }`}
+                    title="Remove question"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addQuestionDraft}
+              disabled={editQuestions.length >= 15}
+              className={`inline-flex items-center gap-2 py-2 px-3.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider font-mono transition ${
+                editQuestions.length >= 15
+                  ? "border-neutral-150 text-neutral-350 cursor-not-allowed"
+                  : "border-neutral-200 text-neutral-700 hover:bg-neutral-50 cursor-pointer"
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Question</span>
+            </button>
+          </div>
+
+          {editError && (
+            <p className="text-xs font-semibold text-red-500 font-mono">{editError}</p>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2 border-t border-neutral-100 pt-4">
+            <button
+              type="button"
+              onClick={cancelFormEdit}
+              className="py-2.5 px-4 rounded-xl border border-neutral-200 hover:bg-neutral-50 text-xs font-semibold text-neutral-800 transition active:scale-[0.98] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={savingForm}
+              className={`inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-semibold transition active:scale-[0.98] border ${
+                savingForm
+                  ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
+                  : "bg-teal-650 border-teal-650 text-white hover:bg-teal-700 shadow-sm shadow-teal-500/10 cursor-pointer"
+              }`}
+            >
+              <Save className="w-4 h-4" />
+              <span>{savingForm ? "Saving..." : "Save Form"}</span>
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

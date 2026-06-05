@@ -4,44 +4,81 @@ import { Check, Copy, Database, ShieldCheck, Terminal } from "lucide-react";
 export function SqlSchemaCard() {
   const [copied, setCopied] = useState(false);
 
-  const sqlCode = `-- Enable UUID Extension
-create extension if not exists "uuid-ossp";
+  const sqlCode = `-- Supabase SQL for simplesphere feedback system
+-- Run this in Supabase SQL Editor.
 
--- 1. Create Campaigns Table
-create table campaigns (
-  id uuid primary key default uuid_generate_v4(),
+-- 1. Enable UUID support
+create extension if not exists "pgcrypto";
+
+-- 2. Create Feedback Campaigns Table
+create table if not exists public.campaigns (
+  id uuid primary key default gen_random_uuid(),
   title text not null,
   form_schema jsonb not null,
   created_at timestamp with time zone default now()
 );
 
--- 2. Create Anonymous Responses Table
-create table responses (
-  id uuid primary key default uuid_generate_v4(),
-  campaign_id uuid references campaigns(id) on delete cascade,
+-- 3. Create Anonymous Feedback Responses Table
+create table if not exists public.responses (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
   ratings jsonb not null,
   suggestion_text text,
   created_at timestamp with time zone default now()
 );
 
--- 3. Enable Row Level Security (RLS)
-alter table campaigns enable row level security;
-alter table responses enable row level security;
+-- 4. Helpful indexes for dashboards and exports
+create index if not exists responses_campaign_id_idx
+on public.responses (campaign_id);
 
--- 4. Enable Public Campaign Select/Read
-create policy "Allow public selective reads of campaigns"
-on campaigns for select
+create index if not exists responses_created_at_idx
+on public.responses (created_at desc);
+
+-- 5. Enable Row Level Security (RLS)
+alter table public.campaigns enable row level security;
+alter table public.responses enable row level security;
+
+-- 6. Students can read campaign forms by link
+drop policy if exists "Allow public reads of campaigns" on public.campaigns;
+create policy "Allow public reads of campaigns"
+on public.campaigns for select
 using (true);
 
--- 5. Enable Anonymous Submissions (Insert Only on Responses)
+-- 7. Students can submit anonymous feedback
+drop policy if exists "Allow anonymous inserts to responses" on public.responses;
 create policy "Allow anonymous inserts to responses"
-on responses for insert
+on public.responses for insert
 with check (true);
 
--- 6. Enable Admin Reads of Responses (Select Only)
+-- 8. Admin dashboard can read responses through the server API
+drop policy if exists "Allow public read of responses for admin dashboard" on public.responses;
 create policy "Allow public read of responses for admin dashboard"
-on responses for select
+on public.responses for select
 using (true);
+
+-- 9. Export one campaign's feedback responses
+-- Replace the UUID below with your campaign id.
+select
+  c.title as campaign_title,
+  r.id as response_id,
+  r.ratings,
+  r.suggestion_text,
+  r.created_at
+from public.responses r
+join public.campaigns c on c.id = r.campaign_id
+where r.campaign_id = '00000000-0000-0000-0000-000000000000'
+order by r.created_at desc;
+
+-- 10. Export all feedback responses
+select
+  c.title as campaign_title,
+  r.id as response_id,
+  r.ratings,
+  r.suggestion_text,
+  r.created_at
+from public.responses r
+join public.campaigns c on c.id = r.campaign_id
+order by r.created_at desc;
 `;
 
   const copyToClipboard = async () => {
