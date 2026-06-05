@@ -737,40 +737,66 @@ app.post("/api/campaigns", async (req, res) => {
         if (iotMatch) {
           extractedTopic = "IoT";
         } else {
-          let baseTitle = campaignTitle;
-          
-          // Split by known markers to truncate long title
-          const markerRegex = /(?:bootcamp|batch|2025|—|-)/i;
-          const markerMatch = baseTitle.match(markerRegex);
-          if (markerMatch && markerMatch.index !== undefined) {
-            baseTitle = baseTitle.slice(0, markerMatch.index).trim();
-          }
+          const genericWords = [
+            "program", "feedback", "form", "course", "evaluation", 
+            "internship", "mid", "end", "term", "final", "semester", 
+            "bootcamp", "batch", "2025", "2026", "summer", "winter", 
+            "spring", "autumn", "workshop", "seminar"
+          ];
 
-          // If the title contains '&' or 'and', and also contains 'web' or 'dev', drop the 'web dev' part
-          if (baseTitle.toLowerCase().includes("&") || baseTitle.toLowerCase().includes(" and ")) {
-            const webMatch = baseTitle.match(/(?:\s+web|\s+dev)/i);
-            if (webMatch && webMatch.index !== undefined) {
-              baseTitle = baseTitle.slice(0, webMatch.index).trim();
+          const getMeaningfulWords = (text: string): string[] => {
+            return text
+              .split(/[\s\-_]+/)
+              .filter(Boolean)
+              .map(w => w.replace(/[^a-zA-Z&]/g, "")) // keep & and letters
+              .filter(w => w.length > 0 && !genericWords.includes(w.toLowerCase()));
+          };
+
+          // 1. Check if there is a dash "—" or "-" and extract meaningful words after it
+          const dashIndex = campaignTitle.indexOf("—") !== -1 ? campaignTitle.indexOf("—") : campaignTitle.indexOf("-");
+          let foundAfterDash = false;
+          if (dashIndex !== -1) {
+            const afterDash = campaignTitle.slice(dashIndex + 1).trim();
+            const meaningfulAfter = getMeaningfulWords(afterDash);
+            if (meaningfulAfter.length > 0) {
+              extractedTopic = meaningfulAfter.slice(0, 3).join(" ");
+              foundAfterDash = true;
             }
           }
 
-          // Capitalize "Artificial Intelligence & Machine Learning" to "AI & Machine Learning"
-          baseTitle = baseTitle.replace(/artificial\s+intelligence/i, "AI");
-          baseTitle = baseTitle.replace(/advanced\s+/i, ""); // Remove "Advanced" to make it shorter
+          if (!foundAfterDash) {
+            // 2. If no dash or no meaningful words after it, parse before markers
+            let base = campaignTitle;
+            const dashMatch = base.match(/—|-/);
+            if (dashMatch && dashMatch.index !== undefined) {
+              base = base.slice(0, dashMatch.index).trim();
+            }
 
-          // Extract first 3-4 meaningful words
-          const words = baseTitle.split(/\s+/).filter(Boolean);
-          if (words.length > 4) {
-            if (words[3].toLowerCase() === "and" || words[3] === "&") {
-              baseTitle = words.slice(0, 5).join(" ");
+            const boundaryRegex = /(?:bootcamp|batch|2025|2026)/i;
+            const boundaryMatch = base.match(boundaryRegex);
+            if (boundaryMatch && boundaryMatch.index !== undefined) {
+              base = base.slice(0, boundaryMatch.index).trim();
+            }
+
+            // Capitalize known long terms
+            base = base.replace(/artificial\s+intelligence/i, "AI");
+            base = base.replace(/advanced\s+/i, ""); // Remove "Advanced"
+
+            const meaningfulBefore = getMeaningfulWords(base);
+            if (meaningfulBefore.length > 0) {
+              if (meaningfulBefore[1] === "&" || meaningfulBefore[1].toLowerCase() === "and") {
+                if (meaningfulBefore[2] && meaningfulBefore[2].toLowerCase() === "machine" && meaningfulBefore[3] && meaningfulBefore[3].toLowerCase() === "learning") {
+                  extractedTopic = meaningfulBefore.slice(0, 4).join(" ");
+                } else {
+                  extractedTopic = meaningfulBefore.slice(0, 3).join(" ");
+                }
+              } else {
+                extractedTopic = meaningfulBefore.slice(0, 4).join(" ");
+              }
             } else {
-              baseTitle = words.slice(0, 4).join(" ");
+              extractedTopic = "Course";
             }
-          } else {
-            baseTitle = words.join(" ");
           }
-
-          extractedTopic = baseTitle.trim();
         }
 
         const t = extractedTopic || "Course";
