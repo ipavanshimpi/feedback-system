@@ -151,6 +151,25 @@ async function updateCampaignStore(id: string, title: string, form_schema: strin
   return rows[0];
 }
 
+async function deleteCampaignStore(id: string): Promise<boolean> {
+  if (!hasSupabaseConfig) {
+    return deleteCampaign(id);
+  }
+
+  // Delete associated responses first
+  await supabaseRequest(`responses?campaign_id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+
+  // Delete the campaign itself
+  await supabaseRequest(`campaigns?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+
+  return true;
+}
+
+
 async function getResponsesByCampaignIdStore(campaignId: string): Promise<FeedbackResponse[]> {
   if (!hasSupabaseConfig) {
     return getResponsesByCampaignId(campaignId);
@@ -384,6 +403,19 @@ export function updateCampaign(id: string, title: string, form_schema: string[])
   writeDb(db);
   return campaign;
 }
+
+export function deleteCampaign(id: string): boolean {
+  const db = readDb();
+  const index = db.campaigns.findIndex(c => c.id === id);
+  if (index === -1) {
+    return false;
+  }
+  db.campaigns.splice(index, 1);
+  db.responses = db.responses.filter(r => r.campaign_id !== id);
+  writeDb(db);
+  return true;
+}
+
 
 export function getResponsesByCampaignId(campaignId: string): FeedbackResponse[] {
   const db = readDb();
@@ -950,6 +982,22 @@ app.put("/api/campaigns/:id", async (req, res) => {
     res.status(500).json({ error: e.message || "Failed to update feedback form" });
   }
 });
+
+// API - Delete campaign feedback form
+app.delete("/api/campaigns/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const campaign = await getCampaignByIdStore(id);
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    await deleteCampaignStore(id);
+    res.json({ success: true, message: "Campaign and its responses deleted successfully" });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || "Failed to delete campaign" });
+  }
+});
+
 
 // API - Get analytics for a campaign
 app.get("/api/campaigns/:id/analytics", async (req, res) => {
